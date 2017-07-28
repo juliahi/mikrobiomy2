@@ -2,6 +2,11 @@
 
 import sys
 from Graph import *
+import matplotlib
+matplotlib.use('Agg')
+from datetime import datetime
+
+import math
 
 
 def find_important(vg): ##update?
@@ -104,23 +109,32 @@ def write_paths(vg, paths, output_name):
         
 
 def count_reads(fq_file):
-    #def blocks(files, size=65536):
-        #while True:
-            #b = files.read(size)
-            #if not b: break
-            #yield b
-
-    #with open(fq_file, "r") as f:
-        #return sum(bl.count("\n") for bl in blocks(f))/4
     suma=0
     for line in open(fq_file, 'r'):
         suma += 1
     return suma/4
 
 
-import argparse
+import seaborn as sns
+import pandas
+
+def plot_fc(vg, outputdir):
+    df = pandas.DataFrame.from_dict({'mean_counts': [np.mean(node.nreads) for node in vg.nodes[::2]], 
+                                     'log2foldChange':[math.log(node.foldChange(),2) for node in vg.nodes[::2]]  })
+    plot = sns.jointplot(x="mean_counts", y="log2foldChange", data=df)
+    plot.savefig(outputdir+'_fc_nodes.pdf')
+        
+
+
+
+import argparse    
+from cProfile import Profile
+from pstats import Stats
+prof = Profile()
+prof.disable() 
+
+
 if __name__ == "__main__":
-    
     def pair(arg):
         return map(int, arg.split(','))
     
@@ -129,43 +143,59 @@ if __name__ == "__main__":
     parser.add_argument('-g', '--graph', help='LastGraph')
     parser.add_argument('-o', '--output', help='output name')
     parser.add_argument('--paired', action='store_true', help='where fq files paired')
-    
-    #if len(sys.argv) <= 4 or len(sys.argv[3].split(',')) != len(sys.argv[4].split(',')):
-        #print """Usage:
-        #Graph.py LastGraph -output_name file1.fq,file2.fq[,file3.fq...] cond1,cond2[,cond3...]
-        #where condN is 0 or 1
-        #"""
+    parser.add_argument('--profile', action='store_true', help='cProfile')
+    parser.add_argument('--minlen', type=int, default=None, help='minimum length of transcript, default=2*k')
+    parser.add_argument('--minfc', type=float, default=2., help='minimum foldChange of transcript, default=2')
     
     args = parser.parse_args()
    
-    print args.files
     reads_in_files = [x[1] for x in args.files]
     conds = [x[0] for x in args.files]
     
     if args.paired:
         reads_in_files = [2*x for x in reads_in_files]
     
-    vg = VelvetGraph(args.graph, reads_in_files, conds)
     
-    #MINLEN = 2*vg.k                #TODO: as program parameters?
-    MINLEN = 200                
-    MINFC = 2
+    if args.profile:
+        prof.enable()
     
-    
-    #for i in xrange(1,vg.n_nodes+1):
-        ##f = vg.get_fasta_ids([i])
-        #f2 = vg.get_fasta_ids([-i])
+    with open(args.output+'.log', 'w+') as log:
+        log.write("Running with parameters: %s\n\n"%(str(args)))
         
-        #print i, #f==compl(f2)[::-1]
-        ##print f
-        #print f2
+        vg = VelvetGraph(args.graph, reads_in_files, conds)
     
+        if args.minlen == None:
+            args.minlen = 2*vg.k
+        log.write("%s: Graph loaded. Minlen: %d\n"%(datetime.now(), args.minlen))
+        
+        
+        if args.profile:
+            prof.disable()
+        plot_fc(vg, args.output)
+        
+        if args.profile:
+            prof.enable()
+        
+        log.write("%s: Finding paths...\n"%datetime.now(), )
+        log.flush()
+        paths = find_diff(vg, args.minlen, args.minfc)
+        
+        log.write("%s: Found %d paths\n"%(datetime.now(), len(paths)))
+        log.flush()
+        
+        write_paths(vg, paths, args.output)
+    
+    if args.profile:
+        prof.disable()  # don't profile the generation of stats
+        prof.dump_stats(args.output+'profile.stats')
+        with open(args.output+'profile_stats.txt', 'a+') as output:
+            stats = Stats(args.output+'profile.stats', stream=output)
+            stats.sort_stats('cumulative', 'time')
+            stats.print_stats()
+
     
     ####up, down = find_important(vg)
     ####assemblies = traverse(vg)
     
     
-    paths = find_diff(vg, MINLEN, MINFC)
-    
-    write_paths(vg, paths, args.output)
     

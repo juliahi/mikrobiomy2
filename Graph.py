@@ -1,6 +1,7 @@
 import numpy as np
-#from collections import defaultdict, Counter
+from collections import defaultdict, Counter
 import Queue as Q
+import bisect
 
 def compl(s):
         if s == '' or s == []: return ''
@@ -19,12 +20,12 @@ class Node:
     epsilon=1.
     def __init__(self, id, values, seq, k):
         self.id = id
-        self.cov = int(values[1])
-        self.Ocov = int(values[2])
+        #self.cov = int(values[1])
+        #self.Ocov = int(values[2])
         self.next_nodes = [] 
         self.prev_nodes = [] 
         self.nreads = [Node.epsilon, Node.epsilon] #defaultdict(0.)
-        self.reads = []
+        #self.reads = []
         self.n = int(values[0]) ##len(seq)
         
         self.selected = 0  #assembly number in which it was selected lastly
@@ -36,10 +37,9 @@ class Node:
         self.twin = None
         
     def add_reads(self, cond, reads):
-            #self.reads.append(read.nr)
             if type(reads) == list:
                 self.nreads[cond] += len(reads)
-                self.reads += reads
+                #self.reads += reads
             else:
                 self.nreads[cond] += reads
 
@@ -107,37 +107,6 @@ class Node:
         return None
         
         
-        #return seq_pocz + '?'*(self.length-e-s)  + seq
-        
-
-"""
-  
-    #def get_fasta_reverse(self, k, s,e): # TODO lepiej
-        #return compl(self.get_fasta_forward(k, e,s)[::-1])
-            
-    #def get_fasta(self, k, s, e, orient):
-        #if orient == 1 or orient == '+' or orient == True:
-            #seq = self.get_fasta_forward(k, s, e)
-            ##assert seq == None or len(seq) == self.length, seq+'_'+str(len(seq))+'_'+str( self.length)
-            #return self.get_fasta_forward(k, s, e)
-        #else:
-            #return self.get_fasta_reverse(k, e, s)
-    
-    
-    ###def get_max_next(self, assembly_id):
-        ###return self.get_max(self.next_nodes, assembly_id)    
-    ###def get_max_prev(self, assembly_id):
-        ###return self.get_max(self.prev_nodes, assembly_id)  
-    ###def get_max(node_list, assembly_id):  
-        ################ TODO: wybrac odpowiedni model przechodzenia! ############
-        ###l = [(node.get_score(), node) for node in node_list if node.selected != assembly_id]
-        ###if l == []:
-            ###return None
-        ###score, node = max(l)#TODO
-        ###if score <= 0:
-            ###return None
-        ###return node
-        """
 
 class FullNode(Node):
 
@@ -224,13 +193,15 @@ class VelvetGraph:
         return self.nodes[arr_id(node_id)]
         
         
-    def add_reads(self,node_id, reads, conds):
-        self.node(node_id).add_reads(0, [reads[i] for i in xrange(len(reads)) if conds[i] == 0])
-        self.node(node_id).add_reads(1, [reads[i] for i in xrange(len(reads)) if conds[i] == 1])
+    def add_reads(self,node_id, reads, sample_ids):
+        node = self.node(node_id)
+        
+        ##node.add_reads(0, [reads[i] for i in xrange(len(reads)) if conds[sample_id[i]] == 0])
+        ##node.add_reads(1, [reads[i] for i in xrange(len(reads)) if conds[sample_id[i]] == 1])
         ###faster version, if not tracking reads
-        ###cond_counts = Counter([get_cond(....)])
-        ###for c,v in cond_counts.items():
-                        ###self.add_reads(node_id,c,v)
+        cond_counts = Counter([self.conds[s] for s in sample_ids])
+        for c,v in cond_counts.items():
+                        node.add_reads(c,v)
     
     def add_arc(self, values):
         n1 = int(values[0])
@@ -280,21 +251,23 @@ class VelvetGraph:
                     self.add_reads(node_id, cond, reads)
                     
                         
-            for a in self.arcs:
-                a.nreads = self.count_reads(a.start, a.end)
+            ##for a in self.arcs:
+                ##a.nreads = self.count_reads(a.start, a.end)
     
     
     def __init__(self, filename, read_counts, conds): #2 conditions
         #read_counts: list of n. of reads from each sample
         #conds: list with 0 or 1 indicating which condition each sample represents
+        
+        self.conds = conds
         for i in xrange(1, len(read_counts)): read_counts[i] += read_counts[i-1]
-        def get_cond(nr):
-            i = len(read_counts)-1
-            nr = int(nr)
-            assert nr <= read_counts[i], 'more reads given to build graph than now'
-            while i >= 0 and nr <= read_counts[i]: 
-                i -= 1
-            return conds[i+1]
+        ###def get_cond(nr):
+            ###i = len(read_counts)-1
+            ###nr = int(nr)
+            ###assert nr <= read_counts[i], 'more reads given to build graph than now'
+            ###while i >= 0 and nr <= read_counts[i]: 
+                ###i -= 1
+            ###return conds[i+1]
         
         with open(filename) as f:
             self.n_nodes, self.n_seqs, self.k, _ = map(int, f.readline().split())
@@ -313,9 +286,9 @@ class VelvetGraph:
                 self.nodes[arr_id(-i)].twin = self.nodes[arr_id(i)]
                 
                 
-            self.arcs = []
-            self.seqs = []
-            self.reads = []
+            #self.arcs = []
+            #self.seqs = []
+            #self.reads = []
             
             while f:
                 values = f.readline().rstrip().split()
@@ -333,9 +306,9 @@ class VelvetGraph:
                     node_id = int(values[0])
                     n_reads = int(values[1])
                     
-                    reads = [Read(f.readline().rstrip().split()) for j in xrange(n_reads)]
-                    rconds = map(lambda(r): get_cond(r.nr), reads) 
-                    self.add_reads(node_id, reads, rconds)
+                    rids = [int(f.readline().rstrip().split()[0]) for j in xrange(n_reads)]
+                    sample_ids = [bisect.bisect(read_counts, r) for r in rids]
+                    self.add_reads(node_id, rids, sample_ids)
 
         #self.normalize()
             
@@ -350,6 +323,7 @@ class VelvetGraph:
                 i += 1
                 j += 1
                 r += 1
+        return r
     
     def get_fasta_ids(self, node_ids):
         seq = ''
