@@ -4,6 +4,7 @@ import sys
 from Graph import *
 import matplotlib
 matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 from datetime import datetime
 
 import math
@@ -71,22 +72,42 @@ def find_important(vg): ##update?
 """
 
 
-def find_diff(vg, min_length, min_fc):
+def find_diff(vg, min_length, min_fc, output_name):
     assemblies = []
     assembly_id = 1
     vg.start_queue()
-    while True:
-        node = vg.max_fc_node(assembly_id)
-        if not node: break
-        path = Path(node, assembly_id)
-        while path.expand(min_fc):
-            pass
-        fc = path.foldChange()
-        if path.length >= min_length and (fc >= min_fc or 1/fc >= min_fc):
-            path.select()
-            assemblies.append(path)
-        assembly_id += 1
-    return assemblies
+    count=0
+    
+    with open(output_name+"assemblies.txt", 'w') as out_txt:
+        with open(output_name+"assemblies.fa", 'w') as out_fa:
+            out_txt.write("ID\tfoldChange\tlength\tnodes\tnodeFC\n")
+            while 1:
+                node = vg.max_fc_node(assembly_id)
+                if not node: break
+                path = Path(node, assembly_id)
+                while path.expand(min_fc):
+                    pass
+                fc = path.foldChange()
+                if path.length >= min_length and (fc >= min_fc or 1/fc >= min_fc):
+                    path.select()
+                    ##assemblies.append(path)
+                        
+                    count += 1
+                    
+                    #write path
+                    nodes = path.get_nodes()
+                    fa = vg.get_fasta(nodes)
+                    fcs = map(lambda node: str(node.foldChange()), nodes)
+                    out_txt.write("%d\t%f\t%f\t%s\t%s\n"%(path.assembly_id, path.foldChange(), len(fa), 
+                                                    ','.join(map(str, path.node_ids())),
+                                                    ','.join(fcs)))
+                    #out_fa.write('>%s\n%s\n%s\n%s\n'%(path.name(), fa, compl(fa), compl(fa[::-1])))
+                    out_fa.write('>%s\n%s\n'%(path.name(), fa))
+
+                    
+                assembly_id += 1
+                
+    return count  ##assemblies
 
 
 def write_paths(vg, paths, output_name):
@@ -117,13 +138,17 @@ def count_reads(fq_file):
 
 import seaborn as sns
 import pandas
+import random
 
 def plot_fc(vg, outputdir):
-    df = pandas.DataFrame.from_dict({'mean_counts': [np.mean(node.nreads) for node in vg.nodes[::2]], 
-                                     'log2foldChange':[math.log(node.foldChange(),2) for node in vg.nodes[::2]]  })
+    sample = vg.nodes[::2]
+    if len(sample) > 1000:
+        sample = random.sample(sample, 1000)
+    df = pandas.DataFrame.from_dict({'mean_counts': [np.mean(node.nreads) for node in sample], 
+                                     'log2foldChange':[math.log(node.foldChange(),2) for node in sample]  })
     plot = sns.jointplot(x="mean_counts", y="log2foldChange", data=df)
-    plot.savefig(outputdir+'_fc_nodes.pdf')
-        
+    plt.savefig(outputdir+'_fc_nodes.pdf')
+    
 
 
 
@@ -177,12 +202,15 @@ if __name__ == "__main__":
         #if args.profile:
             #prof.enable()
         
-        #log.write("%s: Finding paths...\n"%datetime.now(), )
-        #log.flush()
-        #paths = find_diff(vg, args.minlen, args.minfc)
+
+        log.write("%s: Finding paths...\n"%datetime.now(), )
+        log.flush()
         
-        #log.write("%s: Found %d paths\n"%(datetime.now(), len(paths)))
-        #log.flush()
+        
+        paths_count = find_diff(vg, args.minlen, args.minfc, args.output)
+        
+        log.write("%s: Found %d paths\n"%(datetime.now(), paths_count))
+        log.flush()
         
         #write_paths(vg, paths, args.output)
     
