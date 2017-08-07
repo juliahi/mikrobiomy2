@@ -14,7 +14,7 @@ LOG=zachlan_v$V.out
 COMMAND="time  python zachlan_sumfC.py"
 
 
-for N in 1000 10000 1000000 ; 
+for N in 1000; # 10000 1000000 ; 
 do
 
     DIR=$INDIR/small_test_$N/velvet_${K}_track
@@ -30,31 +30,37 @@ do
     
 done
 
-exit
+echo "----------------------"
 
 
 echo "velvet31"
 #all data
 
+INDIR="/home/julia/dane"
+
 FILES="1,12066571 0,11557403 1,11887627 0,12888782 1,11275417 0,7374023 1,12136999  0,3018723  1,8376929 "
-DIR=$INDIR/velvet_31_expcovauto/all
+# DIR=$INDIR/velvet_31_expcovauto/all
+DIR=$INDIR/velvet_31_expcovauto
     now=$(date '+%d/%m/%Y %H:%M:%S');
 echo "all $DIR", "$now" >>$LOG
-$COMMAND -g "$DIR/LastGraph"  -o "$DIR/zachlan_v${V}_" -f $FILES --paired --minlen 200 2>> $LOG #>> $DIR/zachlan_profile$V.txt
+$COMMAND -g "$DIR/LastGraph"  -o "$DIR/zachlan_v${V}_" -f $FILES --paired --minlen 200 --minfc 4 2>> $LOG #>> $DIR/zachlan_profile$V.txt
     now=$(date '+%d/%m/%Y %H:%M:%S');
 echo "finished all $DIR", "$now" >>$LOG
 
 
+echo "----------------------\n\n"
+exit
 
 
-echo "metavelvet21"
-DIR=$INDIR/metavelvet_21/all
-    now=$(date '+%d/%m/%Y %H:%M:%S');
-echo "all $DIR", "$now" >>$LOG
-$COMMAND -g  "$DIR/meta-velvetg.LastGraph"  -o "$DIR/zachlan_v${V}_" -f $FILES --paired --minlen 200 2>> $LOG #>> $DIR/zachlan_profile$V.txt
-    now=$(date '+%d/%m/%Y %H:%M:%S');
-echo "finished all $DIR", "$now" >>$LOG
-
-wait 
-cat $LOG
-#
+# echo "metavelvet21"
+# #DIR=$INDIR/metavelvet_21/all
+# DIR=$INDIR/metavelvet_21
+#     now=$(date '+%d/%m/%Y %H:%M:%S');
+# echo "all $DIR", "$now" >>$LOG
+# $COMMAND -g  "$DIR/meta-velvetg.LastGraph"  -o "$DIR/zachlan_v${V}_" -f $FILES --paired --minlen 200 --minfc 4 2>> $LOG #>> $DIR/zachlan_profile$V.txt
+#     now=$(date '+%d/%m/%Y %H:%M:%S');
+# echo "finished all $DIR", "$now" >>$LOG
+# 
+# wait 
+# cat $LOG
+# #

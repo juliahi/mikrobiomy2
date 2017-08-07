@@ -151,21 +151,33 @@ class Path:
     def name(self):
         return "%s_%d_%f"%(self.assembly_id, self.length, self.foldChange())
     
+    
+    
     def expand(self, borderFC):
         best = None
+        prev = True
         fC = self.foldChange()
         bestfC = 1
-        for node in self.first().prev_nodes + self.last().next_nodes:
+        for node in self.first().prev_nodes:
             if node.selected == self.assembly_id: continue # loop! change if not including previously selected nodes! 
             newfC = (1.* self.counts[0] + node.nreads[0])/(1.* self.counts[1] + node.nreads[1])
             #print fC, borderFC, newfC
             if (fC > 1 and newfC > bestfC and newfC > borderFC) or (fC < 1 and newfC < bestfC and newfC > 1/borderFC):
                 bestfC = newfC
                 best = node
+            
+        for node in self.last().next_nodes:
+            if node.selected == self.assembly_id: continue # loop! change if not including previously selected nodes! 
+            newfC = (1.* self.counts[0] + node.nreads[0])/(1.* self.counts[1] + node.nreads[1])
+            #print fC, borderFC, newfC
+            if (fC > 1 and newfC > bestfC and newfC > borderFC) or (fC < 1 and newfC < bestfC and newfC > 1/borderFC):
+                bestfC = newfC
+                best = node
+                prev = False
         if best == None: return False
     
         best.selected = self.assembly_id
-        if best in self.last().next_nodes:
+        if not prev:
             self.nodes.append(best)
         else:
             self.nodes_prev.append(best)
@@ -307,7 +319,7 @@ class VelvetGraph:
                     n_reads = int(values[1])
                     
                     rids = [int(f.readline().rstrip().split()[0]) for j in xrange(n_reads)]
-                    sample_ids = [bisect.bisect(read_counts, r) for r in rids]
+                    sample_ids = [bisect.bisect_left(read_counts, r) for r in rids]
                     self.add_reads(node_id, rids, sample_ids)
 
         #self.normalize()
