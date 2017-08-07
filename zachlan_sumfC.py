@@ -159,31 +159,32 @@ if __name__ == "__main__":
     if args.profile:
         prof.enable()
     
-    with open(args.output+'.log', 'w+') as log:
-        log.write("Running with parameters: %s\n\n"%(str(args)))
+    with open(args.output+'.log', 'a+') as log:
+        log.write("%s: Running with parameters: %s\n\n"%(datetime.now(), str(args)))
         
         vg = VelvetGraph(args.graph, reads_in_files, conds)
     
         if args.minlen == None:
             args.minlen = 2*vg.k
         log.write("%s: Graph loaded. Minlen: %d\n"%(datetime.now(), args.minlen))
+        prof.disable()
         
         
-        if args.profile:
-            prof.disable()
-        plot_fc(vg, args.output)
+        #if args.profile:
+            #prof.disable()
+        #plot_fc(vg, args.output)
         
-        if args.profile:
-            prof.enable()
+        #if args.profile:
+            #prof.enable()
         
-        log.write("%s: Finding paths...\n"%datetime.now(), )
-        log.flush()
-        paths = find_diff(vg, args.minlen, args.minfc)
+        #log.write("%s: Finding paths...\n"%datetime.now(), )
+        #log.flush()
+        #paths = find_diff(vg, args.minlen, args.minfc)
         
-        log.write("%s: Found %d paths\n"%(datetime.now(), len(paths)))
-        log.flush()
+        #log.write("%s: Found %d paths\n"%(datetime.now(), len(paths)))
+        #log.flush()
         
-        write_paths(vg, paths, args.output)
+        #write_paths(vg, paths, args.output)
     
     if args.profile:
         prof.disable()  # don't profile the generation of stats

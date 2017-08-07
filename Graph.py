@@ -196,12 +196,20 @@ class VelvetGraph:
     def add_reads(self,node_id, reads, sample_ids):
         node = self.node(node_id)
         
+        
+        ##for 2 conditions!
+        s1 = sum([self.conds[x] for x in sample_ids])
+        node.add_reads(0, len(sample_ids) - s1)
+        node.add_reads(1, s1)
+        
+        ###if adding reads
         ##node.add_reads(0, [reads[i] for i in xrange(len(reads)) if conds[sample_id[i]] == 0])
         ##node.add_reads(1, [reads[i] for i in xrange(len(reads)) if conds[sample_id[i]] == 1])
+        
         ###faster version, if not tracking reads
-        cond_counts = Counter([self.conds[s] for s in sample_ids])
-        for c,v in cond_counts.items():
-                        node.add_reads(c,v)
+        ##cond_counts = Counter([self.conds[s] for s in sample_ids])
+        ##for c,v in cond_counts.items():
+                        ##node.add_reads(c,v)
     
     def add_arc(self, values):
         n1 = int(values[0])
@@ -307,7 +315,7 @@ class VelvetGraph:
                     n_reads = int(values[1])
                     
                     rids = [int(f.readline().rstrip().split()[0]) for j in xrange(n_reads)]
-                    sample_ids = [bisect.bisect(read_counts, r) for r in rids]
+                    sample_ids = [bisect.bisect_left(read_counts, r) for r in rids]
                     self.add_reads(node_id, rids, sample_ids)
 
         #self.normalize()
@@ -362,19 +370,6 @@ class VelvetGraph:
         if node != None: node.selected = assembly_id
         return node
     
-
-    
-    #def max_fc_node(self, assembly_id):
-        #l = [(n.foldChange(), n) for n in self.nodes if n.selected == 0] + [(n.foldChange(), n) for n in self.conodes if n.selected == 0]
-        #if l == []: return None
-        #score, node = max(l)
-        #score2, node2 = min(l)
-        ##print 'maxfc', score, score2
-        #if score2 != 0 and score < 1./score2:
-            #node = node2
-        
-        #node.selected = assembly_id
-        #return node
     
 
 
