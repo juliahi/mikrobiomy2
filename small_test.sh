@@ -2,7 +2,11 @@ K=$1
 
 N=$2
 
-OUTDIR=/mnt/chr4/mikrobiomy-2/small_test_$N/velvet_${K}_track
+#OUTDIR=/mnt/chr4/mikrobiomy-2/small_test_$N/velvet_${K}_track
+OUTDIR=/home/julia/dane
+
+
+
 INDIR=/mnt/chr4/mikrobiomy-2
 
 mkdir -p $OUTDIR
@@ -10,13 +14,16 @@ mkdir -p $OUTDIR
 FQ1=$INDIR/Wyniki_sekwencjonowania/demultiplexed/6685_04-06-2015_depl_1.fq
 FQ2=$INDIR/Wyniki_sekwencjonowania/demultiplexed/6685_16-06-2015_depl_1.fq
 
-T1=$INDIR/small_test_$N/s1.fq
-T2=$INDIR/small_test_$N/s2.fq
+T1=$OUTDIR/small_test_$N/s1.fq
+T2=$OUTDIR/small_test_$N/s2.fq
 
 echo $(($N*4)) 
 head -n $(($N*4)) $FQ1 > $T1
 head -n $(($N*4)) $FQ2 > $T2
 
+
+
+OUTDIR=$OUTDIR/small_test_$N/velvet_${K}_track
 
 
 mkdir -p $OUTDIR

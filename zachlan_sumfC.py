@@ -96,36 +96,35 @@ def find_diff(vg, min_length, min_fc, output_name):
                     
                     #write path
                     nodes = path.get_nodes()
-                    fa = vg.get_fasta(nodes)
                     fcs = map(lambda node: str(node.foldChange()), nodes)
-                    out_txt.write("%d\t%f\t%f\t%s\t%s\n"%(path.assembly_id, path.foldChange(), len(fa), 
+                    out_txt.write("%d\t%f\t%f\t%s\t%s\n"%(path.assembly_id, path.foldChange(), path.length, 
                                                     ','.join(map(str, path.node_ids())),
                                                     ','.join(fcs)))
                     #out_fa.write('>%s\n%s\n%s\n%s\n'%(path.name(), fa, compl(fa), compl(fa[::-1])))
+                    fa = vg.get_fasta(nodes)
                     out_fa.write('>%s\n%s\n'%(path.name(), fa))
-
                     
                 assembly_id += 1
                 
     return count  ##assemblies
 
 
-def write_paths(vg, paths, output_name):
-    with open(output_name+"assemblies.txt", 'w') as out_txt:
-        with open(output_name+"assemblies.fa", 'w') as out_fa:
-            out_txt.write("ID\tfoldChange\tlength\tnodes\tnodeFC\n")
-            for i, path in enumerate(paths):
-                #if len(path.node_ids()) < 2: continue
-                nodes = path.get_nodes()
-                fa = vg.get_fasta(nodes)
-                fcs = map(lambda node: str(node.foldChange()), nodes)
+###def write_paths(vg, paths, output_name):
+    ###with open(output_name+"assemblies.txt", 'w') as out_txt:
+        ###with open(output_name+"assemblies.fa", 'w') as out_fa:
+            ###out_txt.write("ID\tfoldChange\tlength\tnodes\tnodeFC\n")
+            ###for i, path in enumerate(paths):
+                ####if len(path.node_ids()) < 2: continue
+                ###nodes = path.get_nodes()
+                ###fcs = map(lambda node: str(node.foldChange()), nodes)
                 
-                #print path.length, len(fa)
-                out_txt.write("%d\t%f\t%f\t%s\t%s\n"%(path.assembly_id, path.foldChange(), len(fa), 
-                                                  ','.join(map(str, path.node_ids())),
-                                                  ','.join(fcs)))
-                #out_fa.write('>%s\n%s\n%s\n%s\n'%(path.name(), fa, compl(fa), compl(fa[::-1])))
-                out_fa.write('>%s\n%s\n'%(path.name(), fa))
+                ####print path.length, len(fa)
+                ###out_txt.write("%d\t%f\t%f\t%s\t%s\n"%(path.assembly_id, path.foldChange(), path.length, 
+                                                  ###','.join(map(str, path.node_ids())),
+                                                  ###','.join(fcs)))
+                ###fa = vg.get_fasta(nodes)
+                ####out_fa.write('>%s\n%s\n%s\n%s\n'%(path.name(), fa, compl(fa), compl(fa[::-1])))
+                ###out_fa.write('>%s\n%s\n'%(path.name(), fa))
                 
         
 
@@ -152,11 +151,21 @@ def plot_fc(vg, outputdir):
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 import argparse    
-from cProfile import Profile
-from pstats import Stats
-prof = Profile()
-prof.disable() 
+
 
 
 if __name__ == "__main__":
@@ -182,17 +191,25 @@ if __name__ == "__main__":
     
     
     if args.profile:
+        from cProfile import Profile
+        from pstats import Stats
+        prof = Profile()
+        #prof.disable() 
         prof.enable()
     
     with open(args.output+'.log', 'a+') as log:
         log.write("%s: Running with parameters: %s\n\n"%(datetime.now(), str(args)))
-        
+        log.flush()
+                
         vg = VelvetGraph(args.graph, reads_in_files, conds)
     
         if args.minlen == None:
             args.minlen = 2*vg.k
         log.write("%s: Graph loaded. Minlen: %d\n"%(datetime.now(), args.minlen))
-        prof.disable()
+        log.flush()
+        
+        if args.profile: ##TMP
+            prof.disable()
         
         
         #if args.profile:
@@ -212,7 +229,6 @@ if __name__ == "__main__":
         log.write("%s: Found %d paths\n"%(datetime.now(), paths_count))
         log.flush()
         
-        #write_paths(vg, paths, args.output)
     
     if args.profile:
         prof.disable()  # don't profile the generation of stats
