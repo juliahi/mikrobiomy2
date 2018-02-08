@@ -249,22 +249,22 @@ class SgaGraph:
                     line = f.readline()
             except: pass
                     
-    def add_duplicates(self, filename): 
-        with open(filename) as f:
-            self.header = f.readline()
-            print self.header
-            cond = None
-            try:
-                while True: #Nodes
-                    line = f.readline()
-                    if line[0] != 'V':
-                        print line
-                        break
-                while True: #Edges
-                    line = line.split()[1:]
-                    self.add_dupl(line)
-                    line = f.readline()
-            except: pass
+    #def add_duplicates(self, filename): 
+        #with open(filename) as f:
+            #self.header = f.readline()
+            #print self.header
+            #cond = None
+            #try:
+                #while True: #Nodes
+                    #line = f.readline()
+                    #if line[0] != 'V':
+                        #print line
+                        #break
+                #while True: #Edges
+                    #line = line.split()[1:]
+                    #self.add_dupl(line)
+                    #line = f.readline()
+            #except: pass
     
     
     def node_outdegrees(self):
