@@ -1,7 +1,7 @@
 L=200 #lenght of contig
 
 
-OUTDIR=/mnt/chr7/data/julia/sga_test
+OUTDIR=/mnt/chr7/data/julia/sga_test_notrim
 INDIR=/home/julia/Wyniki_sekwencjonowania
 
 INFILES1=`echo $INDIR/*depl_?.fq.gz`
@@ -16,204 +16,137 @@ QUALFILTER=20
 CORRECT=1
 FILTER=1
 OVERLAP=51
-
-PREFIX=$OUTDIR
 echo `date` 'start'
 
-
+############# Preprocessing ###############
+CORRECTK=21
 processprobe () {
     probe=$1
-    PREFIX=$OUTDIR/${probe}
+    PREFIX=${probe}
+    SUF=""
+    #sga preprocess -o ${OUTDIR}/${PREFIX}$SUF.fa -m $OVERLAP --suffix=":$probe" --quality-trim=$QUALFILTER --discard-quality $INDIR/${probe}_depl_1.fq.gz 
     
-    PREF=".preprocessed_q$QUALFILTER"
-    #sga preprocess -o ${PREFIX}$PREF.fa -m $OVERLAP --suffix=":$probe" --quality-trim=$QUALFILTER --discard-quality $INDIR/${probe}_depl_1.fq.gz 
-    PREFIX=${PREFIX}$PREF
-    READS=${PREFIX}.fa
+    SUF="$SUF.preprocessed_q$QUALFILTER"
     if [ $CORRECT -eq 1 ]; then
-	#sga index -a ropebwt -t 20 --prefix=$PREFIX --no-reverse  $READS  
+	#sga index -a ropebwt -t 16 --prefix="$OUTDIR/$PREFIX$SUF" --no-reverse  $OUTDIR/$PREFIX$SUF.fa
 	echo `date` 'index' $probe
-	#sga correct -t 20 -k 21 --prefix=$PREFIX $READS  
+	#sga correct -t 16 -k $CORRECTK --prefix=$OUTDIR/$PREFIX$SUF $OUTDIR/$PREFIX$SUF.fa  
         echo `date` 'correct' $probe
-
-	PREFIX=${PREFIX}.ec
-	READS=${PREFIX}.fq
-        PREF=${PREF}.ec
-	mv `basename $PREFIX`.fa ${READS}
+        SUF=${SUF}.ec
+	mv $PREFIX$SUF.fa $OUTDIR/
     fi 
-    #sga index -a ropebwt -t 20 --prefix=$PREFIX $READS  
+    #sga index -a ropebwt -t 16 --prefix=$OUTDIR/$PREFIX$SUF $OUTDIR/$PREFIX$SUF.fa
     echo `date` 'index2' $probe
 
     if [ $FILTER -eq 1 ]; then
-        #sga filter --no-duplicate-check --no-kmer-check -t 20 ${READS}  
-	PREFIX=${PREFIX}.filter.pass
-        READS=${PREFIX}.fa
+        ######sga filter --no-duplicate-check --no-kmer-check -t 16 $OUTDIR/$PREFIX$SUF.fa 
+	#sga filter --substring-only --kmer-size=$CORRECTK --kmer-threshold=3  -t 16 $OUTDIR/$PREFIX$SUF.fa 
+	SUF=${SUF}.filter.pass
 	echo `date`  'filter' $probe
-        PREF=${PREF}.filter.pass
     fi
+
 }
 
 for probe in '6685_04-06-2015' '6685_16-06-2015'; do
-
     processprobe $probe &
-
 done
-wait
-
-
-PREF=".preprocessed_q$QUALFILTER"
+SUF=".preprocessed_q$QUALFILTER"
 if [ $CORRECT -eq 1 ]; then
-        PREF=${PREF}.ec
+        SUF=${SUF}.ec
 fi
 if [ $FILTER -eq 1 ]; then
-        PREF=${PREF}.filter.pass
+        SUF=${SUF}.filter.pass
 fi
 
-
-
-########### Merging ##########
-
-for probe in '6685'; do
-    #sga merge -p $OUTDIR/merged$PREF $OUTDIR/${probe}_04-06-2015${PREF}.fa $OUTDIR/${probe}_16-06-2015${PREF}.fa &
-    echo `date` 'merge' $probe
-done
 wait
-echo `date` 'merge'
-PREFIX=$OUTDIR/merged$PREF
-READS=${PREFIX}.fa
 
 
-########## Remove duplicates #######
 
-#sga rmdup -t 20 --prefix=${PREFIX} ${READS}
+########### Merging control and treated, rmdup... ########## 
+# when more files add merging and output names
+CONTR='6685_04-06-2015'
+TREAT='6685_16-06-2015'
+
+#remove duplicates
+rmdup () {
+	probe=$1
+        SUF=$2
+	#sga rmdup -t 4 --prefix= $OUTDIR/$probe$SUF.fa   $OUTDIR/$probe$SUF.fa 
+	mv  ${probe}$SUF.rmdup*  "$OUTDIR/"  		#### bo opcja --prefix nie działa
+}
+rmdup $CONTR $SUF &
+rmdup $TREAT $SUF &
+wait
+DUPSUF=$SUF.rmdup
 echo `date` 'rmdup'
-echo  "merged$PREF*"  "$OUTDIR/"  
-mv  "merged$PREF*"  "$OUTDIR/"  		#### bo opcja --prefix nie działa
-PREF=$PREF.rmdup
-PREFIX=$OUTDIR/merged$PREF
-READS=${PREFIX}.fa
 
-DUPLICATES=${PREFIX}.dups.fa
+########### Merging treated and control, remove duplicates ##########
+PREFIX=merged
+#####sga merge usuwa zawarte sekwencje. Dla wersji z trimingiem odczytow trzeba je przygotować inaczej (patrz poniżej -->). Dla odczytów równej długości to jest chyba szybsze.
+sga merge -p $OUTDIR/$PREFIX$SUF -t 8 $OUTDIR/${CONTR}${DUPSUF}.fa $OUTDIR/${TREAT}${DUPSUF}.fa
+echo `date` 'merge'
+
+
+########## --> wersja dla odczytów różnej długości ?
+#PREFIX=catmerged
+#cat $OUTDIR/${CONTR}${DUPSUF}.fa > $OUTDIR/$PREFIX$SUF.fa
+#cat $OUTDIR/${TREAT}${DUPSUF}.fa >> $OUTDIR/$PREFIX$SUF.fa
+
+###sga index -a ropebwt -t 16 --prefix=$OUTDIR/$PREFIX$SUF --no-reverse  $OUTDIR/$PREFIX$SUF.fa   #rozważyć korekcję tutaj a nie wcześniej
+###sga correct -t 16 -k $CORRECTK  --prefix=$OUTDIR/$PREFIX$SUF $OUTDIR/$PREFIX$SUF.fa    
+###SUF=$SUF.correct$CORRECTK
+#sga index -a ropebwt -t 16  --prefix=$OUTDIR/$PREFIX$SUF $OUTDIR/$PREFIX$SUF.fa  
+
+########## end: wersja dla odczytów różnej długości
+
+#sga rmdup -t 8 --prefix=$OUTDIR/$PREFIX$SUF $OUTDIR/$PREFIX$SUF.fa  
+echo `date` 'rmdup merged'
+SUF=$SUF.rmdup
+mv  $PREFIX$SUF*  $OUTDIR/  		#### bo opcja --prefix nie działa
+
+
+#### finding which duplicate duplicates which sequence using overlap graph build
+sga overlap -m $OVERLAP -t 16 --target-file=$OUTDIR/${PREFIX}$SUF.fa $OUTDIR/${PREFIX}$SUF.dups.fa
+echo `date` 'overlap duplicates' 
+mv ${PREFIX}$SUF* $OUTDIR/				#### bo opcja --prefix nie działa
+DUPSGRAPH=$OUTDIR/${PREFIX}$SUF.dups.${PREFIX}$SUF.asqg
+gunzip -c ${DUPSGRAPH}.gz > $DUPSGRAPH
+
+
 
 ########## Overlaps ###########
 
-sga overlap -m $OVERLAP -t 20 --prefix=${PREFIX} ${READS} 
+#sga overlap -m $OVERLAP -t 16 --prefix=$OUTDIR/${PREFIX}$SUF $OUTDIR/${PREFIX}$SUF.fa 
 echo `date` 'overlap'
-mv  `basename ${PREFIX}.asqg.gz`  ${PREFIX}_${OVERLAP}.asqg.gz   		#### bo opcja --prefix nie działa
-PREFIX=${PREFIX}_${OVERLAP}
-### rozpakowanie grafu nałożeń 
-gunzip -c ${PREFIX}.asqg.gz > ${PREFIX}.asqg  
-exit
+mv  ${PREFIX}$SUF.asqg.gz  $OUTDIR/${PREFIX}${SUF}_${OVERLAP}.asqg.gz   		#### bo opcja --prefix nie działa
+SUF=${SUF}_${OVERLAP}
+#gunzip -c $OUTDIR/${PREFIX}$SUF.asqg.gz > $OUTDIR/${PREFIX}$SUF.asqg  
 
-
-#### overlaps with duplicates ####
-
-#sga overlap -m $OVERLAP -t 20 --prefix=${PREFIX}_vs_dups --target-file=$DUPLICATES ${READS} 
-#echo `date` 'overlap' $probe
-#mv `basename ${PREFIX}_vs_dups.asqg.gz` ${PREFIX}_vs_dups.asqg.gz		#### bo opcja --prefix nie działa
-#gunzip -c ${PREFIX}_vs_dups.asqg.gz > ${PREFIX}_vs_dups.asqg  
 
 
 ######### Asemble -- get contigs and create simplified chunk graph ##########
-
-sga assemble -o ${PREFIX} ${PREFIX}.asqg.gz
-echo `date` 'assemble'
+#sga assemble -o $OUTDIR/${PREFIX}$SUF $OUTDIR/${PREFIX}$SUF.asqg.gz
+#echo `date` 'assemble'
 ### rozpakowanie "oczyszczonego" grafu nałożeń - assembly wykonuje kilka rzeczy żeby graf uprościć 
-gunzip -c ${PREFIX}-graph.asqg.gz > ${PREFIX}-graph.asqg
+#gunzip -c $OUTDIR/${PREFIX}$SUF-graph.asqg.gz > $OUTDIR/${PREFIX}$SUF-graph.asqg
 
 
 
 
 
-#sga scaffold -o ${PREFIX}.scaf --pe=$READS  ${PREFIX}-contigs.fa
+#sga scaffold -o $$OUTDIR/${PREFIX}$SUF.scaf --pe=$OUTDIR/${PREFIX}$SUF.fa  $OUTDIR/${PREFIX}$SUF-contigs.fa
 #echo `date` 'scaffold'
-#sga scaffold2fasta -o ${PREFIX}.scaffolds.fa -a ${PREFIX}-graph.asqg.gz ${PREFIX}.scaf
+#sga scaffold2fasta -o $OUTDIR/${PREFIX}$SUF.scaffolds.fa -a $OUTDIR/${PREFIX}$SUF-graph.asqg.gz $OUTDIR/${PREFIX}$SUF.scaf
 #echo `date` 'scaffold2fasta'
 
+
+
+echo "---------------------------------"
+echo "graph:" $OUTDIR/${PREFIX}$SUF.asqg  
+echo "duplicates for control:" $OUTDIR/$CONTR$DUPPREF.fa
+echo "duplicates for treated:" $OUTDIR/$TREAT$DUPPREF.fa
+echo "duplicates for merged:" $DUPSGRAPH
+
 exit
-
-################ after SGA 
-
-
-STATS=1
-CONTIGFILE=$PREFIX-long_contigs_$L.fa
-SCAFFOLDFILE=$PREFIX-long_scaffolds_$L.fa
-if [ $STATS -eq 1 ]; then
-	python select_contigs.py $PREFIX-contigs.fa $CONTIGFILE $L
-	python select_contigs.py $PREFIX.scaffolds.fa $SCAFFOLDFILE $L
-
-	SUM=$OUTDIR/summary.txt
-	python get_seqlengths_from_fasta.py $CONTIGFILE $PREFIX-longcontigs_stats.txt 
-
-	echo "SGA OVERLAP=$OVERLAP CORRECT=$CORRECT CONTIGS" >> $SUM
-	python after_velvet.py -i $PREFIX-longcontigs_stats.txt -o $PREFIX-hists_longcontigs.pdf -c 1 >> $SUM
-	python summarize_assemblies.py $PREFIX-longcontigs_stats.txt 1
-
-
-	python get_seqlengths_from_fasta.py $SCAFFOLDFILE $PREFIX-longscaffolds_stats.txt 
-	
-	echo "SGA OVERLAP=$OVERLAP CORRECT=$CORRECT SCAFFOLD" >> $SUM
-	python after_velvet.py -i $PREFIX-longscaffolds_stats.txt -o $PREFIX-hists_longscaffolds.pdf -c 1 >> $SUM
-	python summarize_assemblies.py $PREFIX-longscaffolds_stats.txt 1
-fi
-
-
-
-####### mapping kallisto
-MAP=0
-NAME=all
-INDIR=/home/julia/Wyniki_sekwencjonowania
-K=21
-DIR=$OUTDIR/kallisto_on_contigs_$L/${NAME}_$K
-if [ $MAP -eq 1 ]; then
-
-	INDEX_FILE=$DIR/kallisto_index_${K}.idx
-	LOGFILE=$DIR/kallisto.log
-	KALLISTO="/home/julia/kallisto_kod/src/kallisto"
-	mkdir -p $DIR
-	if [ ! -f  $INDEX_FILE ]
-	then 
-		GENOMES_FILE=$CONTIGFILE
-		$KALLISTO index -k $K -i $INDEX_FILE $GENOMES_FILE  2>> $LOGFILE
-	fi
-
-	TYPE=depl
-	licznik=0
-	for file in $INDIR/*${TYPE}_1.fq.gz; do
-    		FILENAME=${file%_1.fq.gz}
-    		OUTNAME=$DIR/`basename ${FILENAME}`_kallisto_${K}_out
-    		echo $file
-    		LOGFILE=${OUTNAME}.log
-    		SAMFILE=${OUTNAME}.sam
-    		COMMAND1="$KALLISTO quant -i $INDEX_FILE -o ${OUTNAME} --pseudobam ${file} ${FILENAME}_2.fq.gz "
- 	   	$COMMAND1 2>>${LOGFILE} >${SAMFILE} &
-    
-		licznik=$((licznik + 1))
-    		if [ $licznik -eq 5 ]; then
-   			wait
-        		licznik=0
-    		fi
-	done
-	wait
-
-	licznik=0
-	for file in $INDIR/*${TYPE}_1.fq.gz; do
-		FILENAME=${file%_1.fq.gz}
-		OUTNAME=$DIR/`basename ${FILENAME}`_kallisto_${K}_out
-    		samtools view -b ${OUTNAME}.sam > ${OUTNAME}_pseudoal.bam ; samtools sort -@ 2 ${OUTNAME}_pseudoal.bam -o ${OUTNAME}_pseudoal_sorted ; samtools index ${OUTNAME}_pseudoal_sorted
-		
-		licznik=$((licznik + 1))
-    		if [ $licznik -eq 5 ]; then
-   			wait
-        		licznik=0
-    		fi
-	done
-
-fi
-
-
-
-
-
-#python why_not_mapping.py $DIR $OUTDIR/not_mapping_sga${OVERLAP}_$K $K
 
 
