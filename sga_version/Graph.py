@@ -17,21 +17,21 @@ def compl(s):
     
     
 class Node:
-    epsilon=.001
+    #epsilon=.001
     def __init__(self, id, seq):
         self.id = id
         self.next_edges = [] 
         self.prev_edges = [] 
-        self.nreads = [Node.epsilon, Node.epsilon] #defaultdict(0.)
+        self.nreads = [0, 0] #defaultdict(0.)
         #self.n = int(values[0]) ##=len(seq)
         
-        self.selected = 0  #assembly number in which it was selected lastly
+        #self.selected = 0  #assembly number in which it was selected lastly
         ####self.seq = seq
         self.length = len(seq)
         
 
     def foldChange(self):
-        if self.nreads[1] == 0: return None
+        if self.nreads[1] == 0: return float("inf")
         return 1.*self.nreads[0] / self.nreads[1]
     
     
@@ -272,22 +272,7 @@ class SgaGraph:
                 if components > 1000000: break
         return components, sizes
     
-    #def get_fasta_ids(self, node_ids):
-        #seq = ''
-        #start = 0
-        #for node_id in node_ids:
-            #seq += self.node(node_id).get_fasta(self.k, start, 0) ##### + '.'
-            #start = self.k-1
-        #return seq
-    
-    #def get_fasta(self, nodes):
-        #seq = ''
-        #start = 0
-        #for node in nodes:
-            #seq += node.get_fasta(self.k, start, 0) ##### + '.'
-            #start = self.k-1
-        #return seq
-    
+
     def remove_edge(self, edge):
         try: edge.node1.next_edges.remove(edge)
         except: edge.node1.prev_edges.remove(edge)
@@ -301,175 +286,5 @@ class SgaGraph:
         for edge in self.edges:
             if edge.orient == 1: self.remove_edge(edge)
         self.edges = [e for e in self.edges if e.orient == 0]    
-
-
-
-
-
-############do testowania
-#def get_fasta(selfnode, k, s=0, e=0): #s,e - offsets from start/end, 0-based
-        #seq = ''
-        #self = selfnode
-        #n = self.n
-        #print self.id,s,e, n+k-1-s-e
-        #if n+k-1-e <= s: return ''
-        #if s >= k-1: return self.seq[s-k+1:n-e]
-        #if e < n:  
-            #seq = self.seq[:n-e]
-            #e=n
-        #if e >= k-1: return compl(get_fasta(self.twin, k, e, s)[::-1]) + seq
-    
-        #### not whole sequence available!
-        
-        #if s < n: seq_pocz = compl(get_fasta(self.twin, k, k-1, s)[::-1])
-        #else: seq_pocz = ''
-        
-        #s = max(s, n) 
-        
-        ##try without recursion
-        #for node in self.prev_edges: 
-            #if node.length >= 2*(k-1) or node.n >= k-1-s  :
-                #missing = get_fasta(node, k, node.length-(k-1-s), e-n)
-                #return seq_pocz + missing + seq
-        
-        #for node in self.next_edges: 
-            #if node.length >= 2*(k-1) or node.n >= k-1-e :
-                #missing = get_fasta(node, k, s-n, node.length-(k-1-e))
-                #return seq_pocz + missing + seq
-
-        ##with recursion
-        
-        #print self.id, seq_pocz, seq, s, e
-        
-        #missing = ''
-        #for node in self.prev_edges: 
-                #newmissing = node.seq[-(k-1-s):node.n-(e-n)]
-                #if len(newmissing) > len(missing):
-                    #missing = newmissing
-                    
-        #e += len(missing)
-        #seq = missing + seq
-        #missing = ''
-        #for node in self.next_edges:
-                #newmissing = get_fasta(node, k, s-n, k-1)  #only from twin seq
-                #if newmissing != None and len(newmissing) > len(missing):
-                    #missing = newmissing
-        #s += len(missing)
-        #seq_pocz += missing
-        
-        #print self.id, seq_pocz, seq
-    
-        #for node in self.prev_edges: 
-            #if node != self:
-                #print 'rec', node.id, node.length, node.length-(k-1-s), e-n
-                ##missing =  'N'*(node.length-e+n-node.length+(k-1-s)) #get_fasta(node, (k, node.length-(k-1-s), e-n)
-                #missing =  get_fasta_back(node, k, node.length-(k-1-s), e-n)
-                #if missing != None: return seq_pocz + missing + seq
-        #for node in self.next_edges: 
-            #if node != self:
-                #print 'rec2', node.id, node.length, s-n, node.length-(k-1-e)
-                ##missing =  'N'*(node.length-s+n-node.length+(k-1-e))  ###get_fasta(node, (k, s-n, node.length-(k-1-e))
-                #missing =  get_fasta_forward(node, k, s-n, node.length-(k-1-e))
-                #if missing != None: return seq_pocz + missing + seq
-        #return None
-        
-
-
-
-
-#def get_fasta_forward(selfnode, k, s=0, e=0): #s,e - offsets from start/end, 0-based
-        #seq = ''
-        #self=selfnode
-        #n = self.n
-        #if n+k-1-e <= s: return ''
-        #if s >= k-1: return self.seq[s-k+1:n-e]
-        #if e < n:  
-            #seq = self.seq[:n-e]
-            #e=n
-        #if e >= k-1: return compl(get_fasta(self.twin, k, e, s)[::-1]) + seq
-    
-        #### not whole sequence available!
-        
-        #if s < n: seq_pocz = compl(get_fasta(self.twin, k, k-1, s)[::-1])
-        #else: seq_pocz = ''
-        
-        #s = max(s, n) 
-        #for node in self.prev_edges: 
-            #if node.length >= 2*(k-1) or node.n >= k-1-s  :
-                #missing = get_fasta_back(node, k, node.length-(k-1-s), e-n)
-                #return seq_pocz + missing + seq
-        #for node in self.next_edges: 
-            #if node.length >= 2*(k-1) or node.n >= k-1-e :
-                #missing = get_fasta_forward(node, k, s-n, node.length-(k-1-e))
-                #return seq_pocz + missing + seq
-
-        ##with recursion
-        #missing = ''
-        #for node in self.next_edges:
-                #newmissing = get_fasta_forward(node, k, s-n, k-1)  #only from twin seq
-                #if newmissing != None and len(newmissing) > len(missing):
-                    #missing = newmissing
-        #s += len(missing)
-        #seq_pocz += missing
-        
-        #for node in self.next_edges: 
-            #if node != self:
-                #missing = get_fasta_forward(node, k, s-n, node.length-(k-1-e))
-                #if missing != None: return seq_pocz + missing + seq
-        #return None
-        
-        
-
-#def get_fasta_back(selfnode, k, s=0, e=0): #s,e - offsets from start/end, 0-based
-        #seq = ''
-        #self = selfnode
-        #n = self.n
-        #print self.id,s,e, n+k-1-s-e
-        #if n+k-1-e <= s: return ''
-        #if s >= k-1: return self.seq[s-k+1:n-e]
-        #if e < n:  
-            #seq = self.seq[:n-e]
-            #e=n
-        #if e >= k-1: return compl(get_fasta(self.twin, k, e, s)[::-1]) + seq
-    
-        #### not whole sequence available!
-        
-        #if s < n: seq_pocz = compl(get_fasta(self.twin, k, k-1, s)[::-1])
-        #else: seq_pocz = ''
-        
-        #s = max(s, n) 
-        
-        ##try without recursion
-        #for node in self.prev_edges: 
-            #if node.length >= 2*(k-1) or node.n >= k-1-s  :
-                #missing = get_fasta_back(node, k, node.length-(k-1-s), e-n)
-                #return seq_pocz + missing + seq
-        
-        #for node in self.next_edges: 
-            #if node.length >= 2*(k-1) or node.n >= k-1-e :
-                #missing = get_fasta_forward(node, k, s-n, node.length-(k-1-e))
-                #return seq_pocz + missing + seq
-
-        ##with recursion
-        
-        #missing = ''
-        #for node in self.prev_edges: 
-                #newmissing = node.seq[-(k-1-s):node.n-(e-n)]
-                #if len(newmissing) > len(missing):
-                    #missing = newmissing
-                    
-        #e += len(missing)
-        #seq = missing + seq
-        
-    
-        #for node in self.prev_edges: 
-            #if node != self:
-                #print 'rec', node.id, node.length, node.length-(k-1-s), e-n
-                #missing =  get_fasta_back(node, k, node.length-(k-1-s), e-n)
-                #if missing != None: return seq_pocz + missing + seq
-        #return None
-        
-
-
 
 

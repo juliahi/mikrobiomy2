@@ -11,6 +11,7 @@ def compl(s):
             elif x == 'C': return 'G' 
             elif x == 'G': return 'C'
             elif x == 'T': return 'A'
+
             return 'N'
         return ''.join(map(c, s ))
 
