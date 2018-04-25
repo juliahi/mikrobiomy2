@@ -119,32 +119,43 @@ class SgaGraph:
         # original number of nodes in graph (with "lonely" disconnected nodes)
         self.old_n_nodes = prevnodes
 
-        self.nodes = {k: v for k, v in self.nodes.iteritems() if (v[0] > 0) or (v[1] > 0)}
-        currnodes = len(self.nodes)
 
-        print "Found %d disconnected nodes:\t%f of nodes" % (prevnodes - currnodes,
-                                                             (prevnodes - currnodes) * 1. / prevnodes)
+        # if removing lonely vertices
+        # self.nodes = {k: v for k, v in self.nodes.iteritems() if (v[0] > 0) or (v[1] > 0)}
+        # print "Found %d disconnected nodes:\t%f of nodes" % (prevnodes - currnodes,
+        #                                                      (prevnodes - currnodes) * 1. / prevnodes)
+        # currnodes = len(self.nodes)
+        # if not removing lonely vertices yet
+        lonely = len([1 for v in self.nodes.itervalues() if (v[0] == 0) and (v[1] == 0)])
+        print "Found %d disconnected nodes:\t%f of nodes" % (lonely,
+                                                             lonely * 1. / prevnodes)
         print "Found %d >-< edges, \t%f of all edges" % (noedges1, noedges1 * 1. / (noedges0 + noedges1))
 
-        #
-        # sr = [v[0]+v[1] for v in self.nodes.values() if v[0]+v[1] > self.max_edges]
-        # print "Found %d super-repetitive nodes with %d super-repetitive in-edges" % (len(sr), sum(sr))
 
-        # super-repetitive for only one end of node:
-        srin = [v[0] for v in self.nodes.values() if v[0] > self.max_edges]
-        print "Found %d super-repetitive nodes with %d super-repetitive in-edges" % (len(srin), sum(srin))
-        srout = [v[1] for v in self.nodes.values() if v[1] > self.max_edges]
-        print "Found %d super-repetitive nodes with %d super-repetitive out-edges" % (len(srout), sum(srout))
-        print "%d super-repetitive nodes for both out- and in-edges" % (len([1 for v in self.nodes.values()
-                                                                             if v[0] > self.max_edges
-                                                                             and v[1] > self.max_edges]))
+        sr = [v[0]+v[1] for v in self.nodes.values() if self.is_super_repetitive(node)]
+        print "Found %d super-repetitive nodes with %d super-repetitive in-edges" % (len(sr), sum(sr))
+
+        # # super-repetitive for only one end of node:
+        # srin = [v[0] for v in self.nodes.values() if v[0] > self.max_edges]
+        # print "Found %d super-repetitive nodes with %d super-repetitive in-edges" % (len(srin), sum(srin))
+        # srout = [v[1] for v in self.nodes.values() if v[1] > self.max_edges]
+        # print "Found %d super-repetitive nodes with %d super-repetitive out-edges" % (len(srout), sum(srout))
+        # print "%d super-repetitive nodes for both out- and in-edges" % (len([1 for v in self.nodes.values()
+        #                                                                      if v[0] > self.max_edges
+        #                                                                      and v[1] > self.max_edges]))
+
+    def is_super_repetitive(self, node):
+        v = self.nodes[node]
+        return v[0] + v[1] > self.max_edges
 
 
     def load_graph(self, remove_super_repeats=True):
         # loads graph without: island nodes, >-< edges, super-repetitive edges if srrm=True
         self.graph = nx.DiGraph()
+
         with open(self.filename) as f:
             f.readline()
+
             while True:  # Nodes
                 line = f.readline()
                 if line[0] != 'V':
@@ -168,8 +179,8 @@ class SgaGraph:
             else:    # remove = don't load super-repetitive edges
                 while line:
                     edge = read_edge(line)
-                    if edge is not None and self.nodes[edge[0]][1] <= self.max_edges \
-                            and self.nodes[edge[1]][0] <= self.max_edges:
+                    if edge is not None and not self.is_super_repetitive(edge[0]) \
+                            and not self.is_super_repetitive(edge[1]):
                         dup_edges += self.add_edge(edge)
                     line = f.readline()
 
