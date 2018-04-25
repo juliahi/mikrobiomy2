@@ -97,10 +97,10 @@ graph_stats.short_summary(sg)
 
 stats += run_stats(sg)
 
-cPickle.dump(stats, open('stats_'+test_name+suf+'.pickle', 'wb'), protocol=2)
+cPickle.dump(stats, open('stats_'+test_name+suf+'_v2.pickle', 'wb'), protocol=2)
 print "Finished saving stats", give_time()
 
-cPickle.dump(sg, open('simplified_'+test_name+suf+'.pickle', 'wb'), protocol=2)
+cPickle.dump(sg, open('simplified_'+test_name+suf+'_v2.pickle', 'wb'), protocol=2)
 
 print "Finished saving graph", give_time()
 

@@ -80,11 +80,12 @@ def analyze_connected_components(sg):
     c1, c2 = sizes.count(1), sizes.count(2)
     print "Single-node components: %d, fraction of components: %f, fraction of nodes: %f" \
           % (c1, 1. * c1 / no, c1 * 1. / n_nodes)
-    print "Two-node components: %d, fraction of components: %f, fraction of nodes: %f, fraction of original nodes: %f" \
-          % (c2, 1. * c2 / no, c2 * 2. / n_nodes, c2 * 2. / sg.old_n_nodes)
+    print "Two-node components: %d, fraction of components: %f, fraction of nodes: %f" \
+          % (c2, 1. * c2 / no, c2 * 2. / n_nodes)
     larges = [x for x in sizes if x >= 100]
     print "Large components (>=100 nodes): %d, fraction of components: %f, fraction of nodes: %f" \
           % (len(larges), 1. * len(larges) / no, sum(larges) * 1. / n_nodes)
+    print ''
 
     return sizes
 
@@ -98,11 +99,12 @@ def analyze_foldchanges(sg):
 
 def analyze_lengths(sg):
     lengths = sg.get_lengths()
-    print 'maximal values:', sorted(lengths)[-10:]
-    print 'minimal values:', sorted(lengths)[:10]
-    print '% large values (>= 200):', 1. * (len([1 for x in lengths if x >= 200])) / len(lengths)
+    print 'maximal lengths:', sorted(lengths)[-10:]
+    print 'minimal lengths:', sorted(lengths)[:10]
+    print '% large lengths (>= 200):', 1. * (len([1 for x in lengths if x >= 200])) / len(lengths)
     print 'mean value:', np.mean(lengths)
     print 'median value:', np.median(lengths)
+    print ''
 
     return lengths
 

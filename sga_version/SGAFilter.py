@@ -61,7 +61,7 @@ def read_edge(line):
                 n1, n2 = n2, n1
                 start1, start2 = start2, start1
                 end1, end2 = end2, end1
-            assert start2 == 0, "%s %s %d %d %d %d" % (n1, n2, start1, end1, start2, end2)
+            # assert start2 == 0, "%s %s %d %d %d %d" % (n1, n2, start1, end1, start2, end2)
             return n1, n2, start1, end1, start2, end2
 
     return None
@@ -126,6 +126,11 @@ class SgaGraph:
                                                              (prevnodes - currnodes) * 1. / prevnodes)
         print "Found %d >-< edges, \t%f of all edges" % (noedges1, noedges1 * 1. / (noedges0 + noedges1))
 
+        #
+        # sr = [v[0]+v[1] for v in self.nodes.values() if v[0]+v[1] > self.max_edges]
+        # print "Found %d super-repetitive nodes with %d super-repetitive in-edges" % (len(sr), sum(sr))
+
+        # super-repetitive for only one end of node:
         srin = [v[0] for v in self.nodes.values() if v[0] > self.max_edges]
         print "Found %d super-repetitive nodes with %d super-repetitive in-edges" % (len(srin), sum(srin))
         srout = [v[1] for v in self.nodes.values() if v[1] > self.max_edges]
@@ -160,7 +165,7 @@ class SgaGraph:
                         dup_edges += self.add_edge(edge)
                     line = f.readline()
 
-            else:    # don't load super-repetitive edges
+            else:    # remove = don't load super-repetitive edges
                 while line:
                     edge = read_edge(line)
                     if edge is not None and self.nodes[edge[0]][1] <= self.max_edges \
@@ -219,13 +224,14 @@ class SgaGraph:
             if d["end1"] - d["start1"] < values[3] - values[2]:
                 self.graph[values[0], values[1]]['start1'] = values[2]
                 self.graph[values[0], values[1]]['end1'] = values[3]
-                self.graph[values[0], values[1]]['start2'] = values[4]
+                # self.graph[values[0], values[1]]['start2'] = values[4]
                 self.graph[values[0], values[1]]['end2'] = values[5]
                 return 1
         if self.graph.has_node(values[0]) and self.graph.has_node(values[1]):
             self.graph.add_edge(values[0], values[1],
                                 start1=values[2], end1=values[3],
-                                start2=values[4], end2=values[5])
+                                # start2=values[4],
+                                end2=values[5])
         return 0
 
     def add_dupl(self, name, count, reverse):
@@ -409,6 +415,13 @@ class SgaGraph:
         return to_remove
 
 
+    def in_length(self, node, node_len):
+        # maximal length according to incoming edges
+        val = 0
+        for end in self.graph.in_edges(node, data="end2"):
+            val = max(val, node_len - end - 1)
+        return max
+
     def remove_deadends_by_length(self, minlength=200):
         # removes nodes shorter than minlength, with zero out-degree or in-degree
         # always use on simplified graph (after compress_simple_paths)
@@ -416,17 +429,34 @@ class SgaGraph:
 
         for node, indeg in self.graph.in_degree():
             if indeg == 0:
-                to_remove[node] = True
+                to_remove[node] = 0
         for node, outdeg in self.graph.out_degree():
             if outdeg == 0:
-                to_remove[node] = True
+                if node in to_remove: del to_remove[node]
+                else: to_remove[node] = 1
 
         print "Found %d dead-ends" % len(to_remove)
 
+        # use node length as dead-end length
+        # for node, l in self.graph.nodes.data("length"):
+        #     if node in to_remove:
+        #         if l >= minlength:
+        #             del to_remove[node]
+
+        # use non-overlap length as dead-end length
         for node, l in self.graph.nodes.data("length"):
             if node in to_remove:
-                if l >= minlength:
-                    del to_remove[node]
+                if to_remove[node] == 1:    # out_deg=0
+                    for n1, n2, end in self.graph.in_edges(node, data="end2"):
+                        if l-end-1 >= minlength:
+                            del to_remove[node]
+                            break
+                else:    # to_remove[node] == 0: #in_deg=0
+                    for n1, n2, start in self.graph.out_edges(node, data="start1"):
+                        if start >= minlength:
+                            del to_remove[node]
+                            break
+
 
         print "Remove %d short dead-ends" % len(to_remove)
         self.remove_nodes(to_remove.keys())
@@ -488,7 +518,7 @@ class SgaGraph:
         edges_to_add = []
         for v1, v2, edge_d in self.graph.edges(path[-1], data=True):
             edges_to_add.append((new_name, v2, {'start1': length + edge_d["start1"], 'end1': length + edge_d["end2"],
-                                                'start2': edge_d["start2"],
+                                                # 'start2': edge_d["start2"],
                                                 'end2': edge_d["end2"]}))
         for v1 in self.graph.predecessors(path[0]):
             for v, v2, edge_d in self.graph.edges(v1, data=True):
@@ -580,7 +610,7 @@ class SgaGraph:
         for node, deg in self.graph.degree():
             if deg == 0 and self.graph.node[node]["length"] >= minlength:
                 node_list.append(node)
-                if len(node_list) % 1000 == 0:
+                if len(node_list) % 10000 == 0:
                     print len(node_list)
                     # break
         print "Saving %d sequences" % len(node_list)
