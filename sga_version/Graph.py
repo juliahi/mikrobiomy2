@@ -14,8 +14,7 @@ def compl(s):
             return 'N'
         return ''.join(map(c, s ))
 
-    
-    
+
 class Node:
     #epsilon=.001
     def __init__(self, id, seq):
@@ -164,8 +163,8 @@ class SgaGraph:
             
                                     
     def add_duplicates_fasta(self, filename, reverse=False): 
-        #reverse - add to the second condition because duplicate is from another condition
-        #filename = fasta file after rmdup (not duplicated) -- contains counts 
+        # reverse - add to the second condition because duplicate is from another condition
+        # filename = fasta file after rmdup (not duplicated) -- contains counts
         with open(filename) as f:
             try:
                 added=0

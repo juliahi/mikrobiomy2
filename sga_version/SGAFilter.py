@@ -132,8 +132,8 @@ class SgaGraph:
         print "Found %d >-< edges, \t%f of all edges" % (noedges1, noedges1 * 1. / (noedges0 + noedges1))
 
 
-        sr = [v[0]+v[1] for v in self.nodes.values() if self.is_super_repetitive(node)]
-        print "Found %d super-repetitive nodes with %d super-repetitive in-edges" % (len(sr), sum(sr))
+        sr = [v[0]+v[1] for k, v in self.nodes.iteritems() if self.is_super_repetitive(k)]
+        print "Found %d super-repetitive nodes with %d super-repetitive edges" % (len(sr), sum(sr))
 
         # # super-repetitive for only one end of node:
         # srin = [v[0] for v in self.nodes.values() if v[0] > self.max_edges]
@@ -177,12 +177,28 @@ class SgaGraph:
                     line = f.readline()
 
             else:    # remove = don't load super-repetitive edges
+                repetitive = {}
                 while line:
                     edge = read_edge(line)
-                    if edge is not None and not self.is_super_repetitive(edge[0]) \
-                            and not self.is_super_repetitive(edge[1]):
-                        dup_edges += self.add_edge(edge)
+                    # if edge is not None and not self.is_super_repetitive(edge[0]) \
+                    #         and not self.is_super_repetitive(edge[1]):
+                    #     dup_edges += self.add_edge(edge)
+
+                    # mimic SGA
+                    if edge is not None:
+                        if not self.is_super_repetitive(edge[0]) \
+                                and not self.is_super_repetitive(edge[1]):
+                            dup_edges += self.add_edge(edge)
+                        else:
+                            repetitive[edge[0]] = True
+                            repetitive[edge[1]] = True
                     line = f.readline()
+
+                rmedges = list(self.graph.edges(repetitive.keys()))
+                print "Removing %d edges from %d super-repetitive nodes" % (len(rmedges), len(repetitive))
+                self.graph.remove_edges_from(rmedges)
+
+
 
             print 'no. edges loaded:\t', self.graph.number_of_edges()
             print 'Found %d duplicated edges' % dup_edges
