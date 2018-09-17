@@ -1,0 +1,5 @@
+*.pickle
+*.fa
+*.log
+notebooks/*
+*.pyc
