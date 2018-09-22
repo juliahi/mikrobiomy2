@@ -24,63 +24,79 @@ def run_stats(sg):
     return [count_sums1, degrees1, sizes1, lengths1, lfcs1]
 
 
-if __name__ == "__main__":
-    conds = {'6683_16-06-2015': 1, '6685_04-06-2015': 0, '6685_16-06-2015': 1,
-             '6690_04-06-2015': 0, '6690_16-06-2015': 1, '6695_04-06-2015': 0,
-             '6695_16-06-2015': 1, '6704_04-06-2015': 0, '6704_16-06-2015': 1}
-    test_name = 'sga_test_full_notrim_paired_reversed'
-    folder = "/mnt/chr7/data/julia/" + test_name
-    suf = ".preprocessed_qf5.ec.filter.pass.rmdup"
-    filename = folder + "/merged" + suf + "_31.asqg"
-
-    MIN_LENGTH = 300
-
-    stats = []
-
-    print "Loading graph:", filename,  give_time()
+def load_graph(filename, folder, suf, conds):
+    print "Loading graph:", filename, give_time()
     sg = SGAFilter.SgaGraph(conds)
     sg.init_graph(filename)
     print give_time()
     sg.load_graph()
     print "Finished loading graph", give_time()
 
-    sg.add_duplicates_asqg(folder+"/merged"+suf+".dups.merged"+suf+".asqg")
+    sg.add_duplicates_asqg(folder + "/merged" + suf + ".dups.merged" + suf + ".asqg")
     sg.counts = None
-    sg.add_duplicates_fasta_todict(folder+"/merged"+suf+".fa", reverse=True)
-    sg.add_duplicates_fasta_todict(folder+"/control"+suf+".fa")
-    sg.add_duplicates_fasta_todict(folder+"/treated"+suf+".fa")
+    sg.add_duplicates_fasta_todict(folder + "/merged" + suf + ".fa", reverse=True)
+    sg.add_duplicates_fasta_todict(folder + "/control" + suf + ".fa")
+    sg.add_duplicates_fasta_todict(folder + "/treated" + suf + ".fa")
+    sg.finish_loading_counts()
     print "Finished loading duplicates", give_time()
     sys.stdout.flush()
 
+    return sg
+
+
+conds = {'6683_16-06-2015': 1, '6685_04-06-2015': 0, '6685_16-06-2015': 1,
+             '6690_04-06-2015': 0, '6690_16-06-2015': 1, '6695_04-06-2015': 0,
+             '6695_16-06-2015': 1, '6704_04-06-2015': 0, '6704_16-06-2015': 1}
+test_name = 'sga_test_full_notrim_paired_reversed'
+folder = "/mnt/chr7/data/julia/" + test_name
+suf = ".preprocessed_qf5.ec.filter.pass.rmdup"
+MIN_LENGTH = 300
+
+if __name__ == "__main__":
+
+    stats = []
+    run_full = True
+    DEAD_ENDS_N = 10
+
+    if run_full:
+        filename = folder + "/merged" + suf + "_31.asqg"
+        sg = load_graph(filename, folder, suf, conds)
+        sg.write_to_asqg("my_full_merged" + suf + "_31.asqg")
+    else:       # load already simplified
+        filename = "my_full_merged" + suf + "_31.asqg"
+        sg = load_graph(filename, folder, suf, conds)
+        #sg.write_to_asqg("my_full_merged" + suf + "_31.asqg")
+
     # Write basic graph statistics:
     graph_stats.short_summary(sg)
-
     stats += run_stats(sg)
-
     print "---------", give_time(), "---------"
     sys.stdout.flush()
 
-
-    # COLLAPSING SIMPLE PATHS
     sg.compress_simple_paths()
     sg.remove_short_islands(MIN_LENGTH)
+    print "Finished simplifying", give_time()
 
-    print "Finished simplification of paths", give_time()
     sys.stdout.flush()
     graph_stats.short_summary(sg)
-
     stats += run_stats(sg)
-
     print "---------", give_time(), "---------"
     sys.stdout.flush()
 
     # REMOVE DEAD-ENDS and simplify
-    sg.remove_deadends_by_length(MIN_LENGTH)
+    for i in xrange(DEAD_ENDS_N):
+        sg.remove_deadends_by_length(MIN_LENGTH)
+        graph_stats.short_summary(sg)
+
+        stats += run_stats(sg)
+        print "Finished dead-ends round %d" % i, give_time()
+
     sg.compress_simple_paths()
     sg.remove_short_islands(MIN_LENGTH)
 
     print "Finished dead-ends removal", give_time()
     sys.stdout.flush()
+    sg.write_to_asqg("my_simplified" + str(DEAD_ENDS_N) + "_merged" + suf + "_31_4.asqg")
 
     graph_stats.short_summary(sg)
 
@@ -97,10 +113,10 @@ if __name__ == "__main__":
 
     stats += run_stats(sg)
 
-    cPickle.dump(stats, open('stats_'+test_name+suf+'_sga.pickle', 'wb'), protocol=2)
+    cPickle.dump(stats, open('stats'+str(DEAD_ENDS_N)+'_'+test_name+suf+'_sga4.pickle', 'wb'), protocol=2)
     print "Finished saving stats", give_time()
 
-    cPickle.dump(sg, open('simplified_'+test_name+suf+'_sga.pickle', 'wb'), protocol=2)
+    cPickle.dump(sg, open('simplified'+str(DEAD_ENDS_N)+'_'+test_name+suf+'_sga4.pickle', 'wb'), protocol=2)
 
     print "Finished saving graph", give_time()
 

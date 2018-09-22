@@ -18,7 +18,7 @@ def get_edges_from_file(filename):
     for line in open(filename):
         if line.startswith(">"):
             name = line.split()[0][1:]
-            edges = set(cons_pairs(name.split('|')))
+            edges = set(cons_pairs(name.split('|&')))
             all_edges += edges
     return set(all_edges)
 
