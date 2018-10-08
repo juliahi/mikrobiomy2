@@ -140,38 +140,36 @@ def take_longest_minfc(graph, min_fc):
         used[nodename] = True
         first = nodename
         last = nodename
-        best_fwd = (0, None)
-        best_bwd = (0, None)
 
         while True:
-            if best_fwd[1] is None:
-                for neighb in graph.graph.successors(last):
-                    if neighb not in used and lengths[neighb] > best_fwd[0]:
-                        counts_tmp = graph.counts[neighb]
-                        if foldchange_dir(counts,  counts_tmp, min_fc):
-                            best_fwd = (lengths[neighb], neighb)
+            best_bwd = (0, None)
+            best_fwd = (0, None)
+            for neighb in graph.graph.successors(last):
+                if neighb not in used and lengths[neighb] > best_fwd[0]:
+                    counts_tmp = graph.counts[neighb]
+                    if foldchange_dir(counts,  counts_tmp, min_fc):
+                        best_fwd = (lengths[neighb], neighb)
 
-            if best_bwd[1] is None:
-                for neighb in graph.graph.predecessors(first):
-                    if neighb not in used and lengths[neighb] > best_bwd[0]:
-                        counts_tmp = graph.counts[neighb]
-                        if foldchange_dir(counts,  counts_tmp, min_fc):
-                            best_bwd = (lengths[neighb], neighb)
+            for neighb in graph.graph.predecessors(first):
+                if neighb not in used and lengths[neighb] > best_bwd[0]:
+                    counts_tmp = graph.counts[neighb]
+                    if foldchange_dir(counts,  counts_tmp, min_fc):
+                        best_bwd = (lengths[neighb], neighb)
 
             if best_fwd[1] is not None and (best_bwd[1] is None or best_fwd[0] > best_bwd[0]):
                 last = best_fwd[1]
                 path.append(last)
-                best_fwd = (0, None)
+                counts_tmp = graph.counts[last]
                 used[last] = True
 
             elif best_bwd[1] is not None:
                 first = best_bwd[1]
                 path = [first] + path
-                best_bwd = (0, None)
+                counts_tmp = graph.counts[first]
                 used[first] = True
             else:
                 break
-
+            counts = [counts[0] + counts_tmp[0], counts[1] + counts_tmp[1]]
         paths.append(path)
     return paths
 
@@ -185,7 +183,7 @@ def take_best_fc(graph, min_fc):
     heapq.heapify(heap)
     while len(heap) > 0:
         lfc, nodename = heapq.heappop(heap)
-        #print -lfc, nodename, nodename in used, graph.counts[nodename]
+        # print -lfc, nodename, nodename in used, graph.counts[nodename]
         if nodename in used:
             continue
 
@@ -198,40 +196,36 @@ def take_best_fc(graph, min_fc):
         used[nodename] = True
         first = nodename
         last = nodename
-        best_fwd = (0, None)
-        best_bwd = (0, None)
 
         while True:
-            if best_fwd[1] is None:
-                for neighb in graph.graph.successors(last):
-                    counts_tmp = graph.counts[neighb]
-                    if neighb not in used and foldchange_dir(counts, counts_tmp, min_fc):
-                        best_fwd = (abslog2foldchange(*counts_tmp), neighb)
+            best_fwd = (0, None)
+            best_bwd = (0, None)
+            for neighb in graph.graph.successors(last):
+                counts_tmp = graph.counts[neighb]
+                if neighb not in used and foldchange_dir(counts, counts_tmp, min_fc):
+                    best_fwd = (abslog2foldchange(*counts_tmp), neighb)
 
-            if best_bwd[1] is None:
-                for neighb in graph.graph.predecessors(first):
-                    counts_tmp = graph.counts[neighb]
-                    if neighb not in used and foldchange_dir(counts, counts_tmp, min_fc):
-                        best_bwd = (abslog2foldchange(*counts_tmp), neighb)
+            for neighb in graph.graph.predecessors(first):
+                counts_tmp = graph.counts[neighb]
+                if neighb not in used and foldchange_dir(counts, counts_tmp, min_fc):
+                    best_bwd = (abslog2foldchange(*counts_tmp), neighb)
 
-            if best_fwd[1] is not None and (best_bwd[1] is None or \
-                                           (fc > 1 and best_fwd[0] > best_bwd[0]) or \
-                                           (fc < 1 and best_fwd[0] < best_bwd[0])):
-                    last = best_fwd[1]
-                    path.append(last)
-                    best_fwd = (0, None)
-                    used[last] = True
-                    counts_tmp = graph.counts[last]
+            if best_fwd[1] is not None and (best_bwd[1] is None or
+                                            (fc > 1 and best_fwd[0] > best_bwd[0]) or
+                                            (fc < 1 and best_fwd[0] < best_bwd[0])):
+                last = best_fwd[1]
+                path.append(last)
+                used[last] = True
+                counts_tmp = graph.counts[last]
             elif best_bwd[1] is not None:
                 first = best_bwd[1]
                 path = [first] + path
-                best_bwd = (0, None)
                 used[first] = True
                 counts_tmp = graph.counts[first]
             else:
                 break
 
             counts = [counts[0]+counts_tmp[0], counts[1]+counts_tmp[1]]
-            #fc = foldchange(*counts)
+            # fc = foldchange(*counts)
         paths.append(path)
     return paths

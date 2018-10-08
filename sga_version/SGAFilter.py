@@ -51,6 +51,8 @@ def read_edge(line):
     return None
 
 
+PATH_SEP = '&'
+
 class SgaGraph:
     def __init__(self, conds=None, max_edges=128):
         self.nodes = {}
@@ -61,6 +63,8 @@ class SgaGraph:
         self.filename = None
         self.max_edges = max_edges
         self.old_n_nodes = None
+
+        self.new_names = None   # new names after simplification, while saving to asqg
 
     def init_graph(self, filename):  # 1 or 2 conditions
 
@@ -177,14 +181,32 @@ class SgaGraph:
             print 'no. edges loaded:\t', self.graph.number_of_edges()
             print 'Found %d duplicated edges' % dup_edges
 
-    def write_to_asqg(self, filename):
+    def write_to_asqg(self, filename, contigs=None, rename=False):
         with open(filename, 'w+') as output:
             self.header="HT\tVN:i:1\tER:f:0\tOL:i:31\tIN:Z:/mnt/chr7/data/julia/sga_test_full_notrim_paired_reversed/merged.preprocessed_qf5.ec.rmdup.dups.fa\tCN:i:1\tTE:i:0"
             output.write("%s\n" % self.header)
             #nodes = sorted(list(self.graph.nodes))
             nodes = list(self.graph.nodes)
+            count = 0
+            if rename:
+                new_names = {}
+            if contigs is not None:
+                contigsfile = open(contigs, 'w+')
             for nodename, seq in zip(nodes, self.get_nodes_sequence(nodes)):
-                output.write("VT\t%s\t%s\tSS:i:0\n" % (nodename, seq))
+                if rename:
+                    new_names[nodename] = 'contigs-%d' % count
+                    count += 1
+                    output.write("VT\t%s\t%s\tSS:i:0\n" % (new_names[nodename], seq))
+                else:
+                    output.write("VT\t%s\t%s\tSS:i:0\n" % (nodename, seq))
+                if contigs is not None:
+                    if rename:
+                        contigsfile.write(">%s\n%s\n" % (new_names[nodename], seq))
+                    else:
+                        contigsfile.write(">%s\n%s\n" % (nodename, seq))
+
+            if contigs is not None:
+                contigsfile.close()
 
             used = {}
             for u in nodes:
@@ -193,7 +215,10 @@ class SgaGraph:
                         data = self.graph.edges[u, v]
                         s = str(data["start1"]) + ' ' + str(data["end1"]) + ' ' + str(self.graph.node[u]["length"]) + ' '
                         s += str(0) + ' ' + str(data["end2"]) + ' ' + str(self.graph.node[v]["length"]) + " 0 0"
-                        output.write("ED\t%s %s %s\n" % (u, v, s))
+                        if rename:
+                            output.write("ED\t%s %s %s\n" % (new_names[u], new_names[v], s))
+                        else:
+                            output.write("ED\t%s %s %s\n" % (u, v, s))
 
                 for v in self.graph.predecessors(u):
                     if v not in used:
@@ -201,8 +226,14 @@ class SgaGraph:
                         s = str(0) + ' ' + str(data["end2"]) + ' ' + str(self.graph.node[u]["length"]) + ' '
                         s += str(data["start1"]) + ' ' + str(data["end1"]) + ' ' + str(self.graph.node[v]["length"])
                         s += " 0 0"
-                        output.write("ED\t%s %s %s\n" % (u, v, s))
+                        if rename:
+                            output.write("ED\t%s %s %s\n" % (new_names[u], new_names[v], s))
+                        else:
+                            output.write("ED\t%s %s %s\n" % (u, v, s))
                 used[u] = True
+
+            if rename:
+                self.new_names = dict([(v, k) for k, v in new_names.iteritems()])
 
     def subgraph(self, nodes):
         newsg = SgaGraph(self.conds)
@@ -427,7 +458,6 @@ class SgaGraph:
         self.remove_nodes(to_remove)
         return to_remove
 
-
     def in_length(self, node, node_len):
         # maximal length according to incoming edges
         val = 0
@@ -481,17 +511,18 @@ class SgaGraph:
 
         paths = []
         used = {}
-        for node, neighbours in self.graph.adjacency():
-            if node not in used and len(neighbours) == 1:
-
-                while node not in used and self.graph.in_degree(node) == 1 \
+        for node in self.graph:
+            if node not in used and self.graph.out_degree(node) == 1:
+                used_tmp = {} 
+                while node not in used_tmp and self.graph.in_degree(node) == 1 \
                         and len(self.graph.succ[self.graph.pred[node].keys()[0]]) == 1:
-                    used[node] = True
+                    used_tmp[node] = True
                     node = self.graph.pred[node].keys()[0]
 
                 # build path
                 path = [node]
-                tmp_node = neighbours.keys()[0]
+                tmp_node = self.graph.succ[node].keys()[0]
+
                 used[node] = True
 
                 while tmp_node not in used:
@@ -555,39 +586,6 @@ class SgaGraph:
         length += last_dict["length"]
         return (new_name, {'length': length}), edges_to_add
 
-    def compress_cycles(self):
-        # run after compress_simple_paths
-        paths = []
-        used = {}
-        for node, neighbours in self.graph.adjacency():
-            if len(neighbours) == 1 and self.graph.in_degree(node) == 1 and node not in used:
-                # build path
-                path = [node]
-                tmp_node = neighbours.keys()[0]
-                used[node] = True
-
-                while tmp_node != node:
-                    if self.graph.in_degree(tmp_node) != 1:
-                        break
-                    path.append(tmp_node)
-                    used[tmp_node] = True
-
-                    if self.graph.out_degree(tmp_node) != 1:
-                        break
-                    tmp_node = list(self.graph.neighbors(tmp_node))[0]
-
-                if len(path) > 1:
-                    paths.append(path)
-                    print path[0], "\n", list(self.graph.predecessors(path[0])), "\n\n"
-                    print path[-1], "\n", list(self.graph.successors(path[-1])), "\n\n"
-                    break
-
-
-
-        print "Compressing cycles: Removing %d nodes, adding %d nodes (=number of simplified paths)" \
-            % (sum([len(x) for x in paths]), len(paths))
-        #self._compress_paths_finish(paths)
-
     def remove_short_islands(self, minlength):
         node_list = []
         for node, deg in self.graph.degree():
@@ -619,6 +617,9 @@ class SgaGraph:
         # will be deprecated after implementing paths sequences finding
         seqs = {}
         edges = {}
+
+        nodes = map(lambda x: x.replace('&', '|'), nodes)
+
         for node in nodes:
             for read in node.split('|'):
                 seqs[read] = None
@@ -628,7 +629,7 @@ class SgaGraph:
         if graph_file is None:
             graph_file = self.filename
 
-        print graph_file
+       # print graph_file
         with open(graph_file) as f:
             f.readline()
             while True:  # Nodes
@@ -639,14 +640,14 @@ class SgaGraph:
                 node_id = split[1]
                 seq = split[2]
                 if node_id in seqs: seqs[node_id] = seq
-            print 'no. sequences loaded:', len(seqs)
+            #print 'no. sequences loaded:', len(seqs)
 
             while line:  # Edges
                 edge = read_edge(line)
                 if edge is not None and (edge[0], edge[1]) in edges:
                     edges[(edge[0], edge[1])] = edge[2:]
                 line = f.readline()
-            print 'no. edges loaded:', len(edges)
+            #print 'no. edges loaded:', len(edges)
 
         sequences = []
         for node in nodes:
@@ -659,7 +660,7 @@ class SgaGraph:
 
                 assert seqs[read2][:edge[3]+1] == seqs[read1][edge[0]:], \
                     seqs[read2][:edge[3]+1] + ' ' + seqs[read1][edge[0]:]
-
+            assert seq is not None, node + '\t' + reads[0]
             if node in self.graph.nodes:
                 assert len(seq) == self.graph.node[node]["length"], "%d %d" % (len(seq), self.graph.node[node]["length"])
             sequences.append(seq)
@@ -697,13 +698,17 @@ class SgaGraph:
             self.remove_nodes(node_list)
         return node_list, seqs
 
-    def save_path_sequences(self, paths, out_file, graph_file=None, min_fc = None):
-        print "Saving %d sequences" % len(paths)
+    def save_path_sequences(self, paths, out_file, graph_file=None, min_fc = None, new_names = False):
+        #print "Saving %d sequences" % len(paths)
 
         if len(paths) == 0:
             return []
 
-        seqs = self.get_nodes_sequence(map(lambda x: '|'.join(x), paths), graph_file)
+        if new_names:
+            paths = [[self.new_names[x] for x in path] for path in paths]
+        #print paths
+
+        seqs = self.get_nodes_sequence(map(lambda x: PATH_SEP.join(x), paths), graph_file)
 
         counts = 0
         length = 0
@@ -717,30 +722,32 @@ class SgaGraph:
                         continue
                 counts += counts_tmp[0] + counts_tmp[1]
                 length += len(seq)
-                f.write('>%s counts1=%d counts2=%d foldchange=%f\n%s\n' % ('&'.join(path), counts_tmp[0], counts_tmp[1],
+                f.write('>%s counts1=%d counts2=%d foldchange=%f\n%s\n' % (PATH_SEP.join(path), counts_tmp[0], counts_tmp[1],
                                                     foldchange(counts_tmp[0], counts_tmp[1]), seq))
         print "Saved %d sequences with %d counts of total length %d" % \
               (len(paths), counts, length)
         return seqs
 
 
-def get_path_count(graph, path):
+def get_path_count(graph, path, new_names=False):
+        if new_names:
+            path = [graph.new_names[x] for x in path]
         counts_tmp0 = 0
         counts_tmp1 = 0
         for node in path:
             counts_tmp0 += graph.counts[node][0]
             counts_tmp1 += graph.counts[node][1]
-        return (counts_tmp0, counts_tmp1)
+        return counts_tmp0, counts_tmp1
 
 
-def filter_paths(graph, paths, min_fc):
+def filter_paths(graph, paths, min_fc, new_names=False):
         if len(paths) == 0:
             return []
 
         counts = 0
         filtered_paths = []
         for path in paths:
-            counts_tmp = get_path_count(graph, path)
+            counts_tmp = get_path_count(graph, path, new_names)
             if not foldchange_compare(counts_tmp[0], counts_tmp[1], min_fc):
                 continue
             counts += counts_tmp[0] + counts_tmp[1]

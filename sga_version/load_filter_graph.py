@@ -50,13 +50,13 @@ conds = {'6683_16-06-2015': 1, '6685_04-06-2015': 0, '6685_16-06-2015': 1,
 test_name = 'sga_test_full_notrim_paired_reversed'
 folder = "/mnt/chr7/data/julia/" + test_name
 suf = ".preprocessed_qf5.ec.filter.pass.rmdup"
-MIN_LENGTH = 300
+MIN_LENGTH = 200
 
 if __name__ == "__main__":
 
     stats = []
-    run_full = True
-    DEAD_ENDS_N = 10
+    run_full = False
+    DEAD_ENDS_N = 1
 
     if run_full:
         filename = folder + "/merged" + suf + "_31.asqg"
@@ -96,7 +96,7 @@ if __name__ == "__main__":
 
     print "Finished dead-ends removal", give_time()
     sys.stdout.flush()
-    sg.write_to_asqg("my_simplified" + str(DEAD_ENDS_N) + "_merged" + suf + "_31_4.asqg")
+    sg.write_to_asqg("my_simplified" + str(DEAD_ENDS_N) + "_merged" + suf + "_31_200.asqg")
 
     graph_stats.short_summary(sg)
 
@@ -113,10 +113,10 @@ if __name__ == "__main__":
 
     stats += run_stats(sg)
 
-    cPickle.dump(stats, open('stats'+str(DEAD_ENDS_N)+'_'+test_name+suf+'_sga4.pickle', 'wb'), protocol=2)
+    cPickle.dump(stats, open('stats'+str(DEAD_ENDS_N)+'_'+test_name+suf+'_sga200.pickle', 'wb'), protocol=2)
     print "Finished saving stats", give_time()
 
-    cPickle.dump(sg, open('simplified'+str(DEAD_ENDS_N)+'_'+test_name+suf+'_sga4.pickle', 'wb'), protocol=2)
+    cPickle.dump(sg, open('simplified'+str(DEAD_ENDS_N)+'_'+test_name+suf+'_sga200.pickle', 'wb'), protocol=2)
 
     print "Finished saving graph", give_time()
 

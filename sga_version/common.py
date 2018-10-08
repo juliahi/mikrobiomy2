@@ -49,10 +49,27 @@ def foldchange_compare(n1, n2, min_fc):
         return False
 
 
-# check if foldchange for counts c1 stays enriched in the same direction aftr adding counts c2
+# check if foldchange for counts c1 stays enriched in the same direction after adding counts c2
 def foldchange_dir(c1, c2, min_fc):
         if c1[0] >= c1[1]*min_fc and c1[0]+c2[0] >= (c1[1]+c2[1])*min_fc:
             return True
         if c1[1] >= c1[0]*min_fc and c1[1]+c2[1] >= (c1[0]+c2[0])*min_fc:
             return True
         return False
+
+
+def iter_fasta(filename):
+    name = None
+    seq = ""
+    for line in open(filename):
+        if line.startswith(">"):
+            if name is not None:
+                yield name, seq
+            name = line.strip()
+            seq = ""
+        else:
+            seq += line.strip()
+
+    if name is not None:
+        yield name, seq
+
