@@ -5,69 +5,6 @@ import math
 
 from common import *
 
-# class Path:
-#     first = None
-#     last = None
-#     path = []
-#
-#     def __init__(self, nodename, counts=None):
-#         self.first = nodename
-#         self.last = nodename
-#         self.counts = counts
-#         self.path = [nodename]
-#
-#     def get_path(self):
-#         return self.path
-#
-#     def extend_longest(self, graph, used, lengths):
-#         best_fwd = (0, None)
-#         best_bwd = (0, None)
-#
-#         while True:
-#             if best_fwd[1] is None:
-#                 for neighb in graph.graph.successors(last):
-#                     if lengths[neighb] > best_fwd[0]:
-#                         best_fwd = (lengths[neighb], neighb)
-#
-#             if best_bwd[1] is None:
-#                 for neighb in graph.graph.predecessors(first):
-#                     if lengths[neighb] > best_bwd[0]:
-#                         best_bwd = (lengths[neighb], neighb)
-#
-#             if best_fwd[1] is not None and (best_bwd[1] is None or best_fwd[0] > best_bwd[0]):
-#                 last = best_fwd[1]
-#                 path.append(last)
-#                 best_fwd = (0, None)
-#                 used[last] = True
-#
-#             elif best_bwd[1] is not None:
-#                 first = best_bwd[1]
-#                 path = [first] + path
-#                 best_bwd = (0, None)
-#                 used[first] = True
-#             else:
-#                 break
-
-
-# def take_longest(graph):
-#     used = {}
-#
-#     lengths = graph.graph.nodes.data("length")
-#     paths = []
-#
-#     heap = [(v, k) for k, v in lengths]
-#     heapq.heapify(heap)
-#     while len(heap) > 0:
-#         length, nodename = heapq.heappop(heap)
-#         if nodename in used: continue
-#
-#         used[nodename] = True
-#         p = Path(nodename, graph.counts[nodename])
-#         p.extend_longest(graph, used, lengths)
-#
-#         paths.append(p.get_path())
-#     return paths
-
 
 def take_longest(graph):
     used = {}
@@ -77,6 +14,7 @@ def take_longest(graph):
 
     heap = [(-v, k) for k, v in lengths]
     heapq.heapify(heap)
+
     while len(heap) > 0:
         length, nodename = heapq.heappop(heap)
         if nodename in used:

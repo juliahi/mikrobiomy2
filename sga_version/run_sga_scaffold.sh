@@ -45,7 +45,7 @@ BWA_BIN=/home/julia/lib/bwa/bwa
 #$sga scaffold  -o scaffolds3.scaf -u 1 -c 0.1 -g $PRIMARY_GRAPH --pe libPE3.de $PRIMARY_CONTIGS
 
 # Convert the scaffolds to FASTA format#
-$sga scaffold2fasta --min-gap-length=5 --min-length=200 --use-overlap --write-unplaced --graph-resolve=best-any --write-names -a $PRIMARY_GRAPH -o sga-scaffolds2.fa scaffolds2.scaf
+$sga scaffold2fasta --min-gap-length=5 --min-length=200 --use-overlap --distanceFactor=3 --write-unplaced --graph-resolve=best-any --write-names -a $PRIMARY_GRAPH -o sga-scaffolds4.fa scaffolds2.scaf
 
 
 

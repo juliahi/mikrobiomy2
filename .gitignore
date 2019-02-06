@@ -1,5 +1,10 @@
-*.pickle
-*.fa
-*.log
-notebooks/*
-*.pyc
+**/*.pickle
+**/*.fa
+**/*.tsv
+**/*.log
+sga_version/notebooks/*
+**/*.pyc
+**/*~
+**/*.gz
+**/*.asqg
+sga_version/*/*

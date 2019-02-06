@@ -1,5 +1,6 @@
 # widely used methods methods
 import math
+import numpy
 
 epsilon = 0.000001
 
@@ -27,9 +28,15 @@ def cons_pairs(input_list):
         yield (input_list[i], input_list[i+1])
 
 
+def index_pairs(n):
+    for j in xrange(1, n):
+        for i in xrange(j):
+            yield (i, j)
+
 # def foldchange(n1, n2):
 #         if n2 == 0: return float("inf")
 #         return 1. * n1 / n2
+
 
 def foldchange(n1, n2):
     if n2 == 0: n2 = epsilon
@@ -44,6 +51,7 @@ def abslog2foldchange(n1, n2):
 
 
 def foldchange_compare(n1, n2, min_fc):
+        if n1 == n2 == 0: return False
         if n1 >= n2*min_fc: return True
         if n2 >= n1*min_fc: return True
         return False
@@ -65,7 +73,7 @@ def iter_fasta(filename):
         if line.startswith(">"):
             if name is not None:
                 yield name, seq
-            name = line.strip()
+            name = line.strip()[1:]
             seq = ""
         else:
             seq += line.strip()
@@ -73,3 +81,20 @@ def iter_fasta(filename):
     if name is not None:
         yield name, seq
 
+
+def write_to_fasta(names, sequences, filename):
+    with open(filename, 'w+') as f:
+        for name, seq in zip(names, sequences):
+            f.write(">%s\n%s\n" % (name, seq))
+
+
+def variance(l):
+    #m = mean(l)
+    #return sum([(x - m)**2 for x in l])/len(l)
+    return numpy.var(l)
+
+
+def dispersion(l):
+    if numpy.mean(l) == 0:
+        return 0     # if all values are 0 there is no dispersion... is it right?
+    return variance(l) / numpy.mean(l)

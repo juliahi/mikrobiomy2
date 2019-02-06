@@ -5,31 +5,6 @@ import networkx as nx
 from common import *
 
 
-# class Edge:
-# def __init__(self, values, node1, node2):
-# #self.name1 = values[0]
-# self.start1 = int(values[2])
-# self.end1 = int(values[3])
-# #self.len1 = int(values[4])
-# #self.name2 = values[1]
-# self.start2 = int(values[5])
-# self.end2 = int(values[6])
-# #self.len2 = int(values[7])
-
-# self.orient = int(values[8]) #(0=same, 1=reverse)
-# #self.diffs = int(values[9])
-
-# def whattype(self):
-# if self.node1.length == abs(self.end1 - self.start1)+1: return 'incl1'
-# if self.node2.length == abs(self.end2 - self.start2)+1: return 'incl2'
-# if self.orient == 0:
-# if self.start2 < self.end2: return '>->'
-# else: return '<-<'
-# else:
-# if self.start2 < self.end2: return '>-<'
-# else: return '<->'
-
-
 def read_edge(line):
     line = line.split()[1:]
     if int(line[8]) == 0:   # not changing direction
@@ -47,11 +22,11 @@ def read_edge(line):
                 end1, end2 = end2, end1
             # assert start2 == 0, "%s %s %d %d %d %d" % (n1, n2, start1, end1, start2, end2)
             return n1, n2, start1, end1, start2, end2
-
     return None
 
 
 PATH_SEP = '&'
+
 
 class SgaGraph:
     def __init__(self, conds=None, max_edges=128):
@@ -183,9 +158,8 @@ class SgaGraph:
 
     def write_to_asqg(self, filename, contigs=None, rename=False):
         with open(filename, 'w+') as output:
-            self.header="HT\tVN:i:1\tER:f:0\tOL:i:31\tIN:Z:/mnt/chr7/data/julia/sga_test_full_notrim_paired_reversed/merged.preprocessed_qf5.ec.rmdup.dups.fa\tCN:i:1\tTE:i:0"
+            # self.header="HT\tVN:i:1\tER:f:0\tOL:i:31\tIN:Z:/mnt/chr7/data/julia/sga_test_full_notrim_paired_reversed/merged.preprocessed_qf5.ec.rmdup.dups.fa\tCN:i:1\tTE:i:0"
             output.write("%s\n" % self.header)
-            #nodes = sorted(list(self.graph.nodes))
             nodes = list(self.graph.nodes)
             count = 0
             if rename:
@@ -235,6 +209,49 @@ class SgaGraph:
             if rename:
                 self.new_names = dict([(v, k) for k, v in new_names.iteritems()])
 
+                # remove permanently?
+                self.rename_nodes_permanently(sg.new_names)
+                self.filename = filename
+
+    def rename_nodes_permanently(self, new_names=None):
+        if new_names is None:
+            count = 0
+            new_names = {}
+            for nodename in sg.nodes:
+                new_names[nodename] = 'contigs-%d' % count
+                count += 1
+        else:
+            new_names = dict([(v, k) for k, v in new_names.iteritems()])
+
+        new_count = {}
+        new_g = nx.DiGraph()
+
+        for old_name, name in new_names.iteritems():
+            if self.graph.has_node(old_name):
+                new_count[name] = self.counts[old_name]
+                new_g.add_node(name, length=self.graph.nodes[old_name]["length"])
+
+        for old_name, name in new_names.iteritems():
+            if self.graph.has_node(old_name):
+                for u, v, data in self.graph.out_edges(old_name, data=True):
+                    new_g.add_edge(name, new_names[v])
+                    new_g[name][new_names[v]].update(data)
+
+        # new_nodes = {} # TODO sprawdzic czy nie trzeba tego zrobic!
+        self.counts = new_count
+        self.graph = new_g
+        self.new_names = None
+
+    def normalize_counts(self):
+        sums0 = 0
+        sums1 = 0
+        for c in self.counts.values():
+            sums0 += c[0]
+            sums1 += c[1]
+        print "Sum of all reads condition 0: %.2f. Condition 1: %.2f" % (sums0, sums1)
+        for name, c in self.counts.iteritems():
+            self.counts[name] = [1000000.*c[0]/sums0, 1000000.*c[1]/sums1]
+
     def subgraph(self, nodes):
         newsg = SgaGraph(self.conds)
         newsg.filename = self.filename
@@ -249,8 +266,8 @@ class SgaGraph:
         cond = node_id.split(':')[-1]
         if cond[-2] == '/': cond = cond[:-2]
         # TODO: kontrola bledu?
-        if cond not in self.conds: ######### TODO usunac to wybieranie!
-            return self.conds.keys()[0]
+        #if cond not in self.conds: ######### TODO usunac to wybieranie!
+        #    return self.conds.keys()[0]
         return self.conds[cond]
 
     def get_node(self, node_id):
@@ -666,6 +683,33 @@ class SgaGraph:
             sequences.append(seq)
         return sequences
 
+    def get_path_coverage(self, path):
+        # coverage of path from graph = reads will be extended to whole node
+
+        cov0 = [self.counts[path[0]][0]] * self.graph.node[path[0]]["length"]
+        cov1 = [self.counts[path[0]][1]] * self.graph.node[path[0]]["length"]
+
+        for node1, node2 in cons_pairs(path):
+            if (node1, node2) in self.graph.edges:
+
+                edge = self.graph.edges[node1, node2]
+                c0, c1 = self.counts[node2]
+
+                l2 = self.graph.node[node2]["length"]
+                for i in xrange(edge['end2']):
+                    cov0[-1-i] += c0
+                    cov1[-1-i] += c1
+
+                cov0 += [c0] * (l2 - edge['end2'])
+                cov1 += [c1] * (l2 - edge['end2'])
+
+            else:
+                c0, c1 = self.counts[node2]
+                l2 = self.graph.node[node2]["length"]
+                cov0 += [c0] * l2
+                cov1 += [c1] * l2
+        return cov0, cov1
+
     def save_simple_nodes(self, minlength, out_file, graph_file=None, remove=False):
         node_list = []
         for node, deg in self.graph.degree():
@@ -740,23 +784,31 @@ def get_path_count(graph, path, new_names=False):
         return counts_tmp0, counts_tmp1
 
 
-def filter_paths(graph, paths, min_fc, new_names=False):
+def get_path_coverage(graph, path, new_names=False):
+    if new_names:
+        path = [graph.new_names[x] for x in path]
+    return graph.get_path_coverage(path)
+
+
+def filter_paths(graph, paths, sequences, min_fc, new_names=False):
         if len(paths) == 0:
             return []
 
         counts = 0
         filtered_paths = []
-        for path in paths:
+        filtered_seqs = []
+        for path, s in zip(paths, sequences):
             counts_tmp = get_path_count(graph, path, new_names)
             if not foldchange_compare(counts_tmp[0], counts_tmp[1], min_fc):
                 continue
             counts += counts_tmp[0] + counts_tmp[1]
             filtered_paths.append(path)
+            filtered_seqs.append(s)
 
         print "Leave %d sequences with %d counts" % \
               (len(filtered_paths), counts)
 
-        return filtered_paths
+        return filtered_paths, filtered_seqs
 
 
 def get_largest_components(sg, ncomps):
