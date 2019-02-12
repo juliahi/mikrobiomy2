@@ -1,64 +1,86 @@
 #import SGAFilter
 import cPickle
-from load_filter_graph import give_time
 import heuristics
 from common import *
+from common_parameters import *
+from compare_heuristics import *
+from compare_assemblies import load_sga_scaffold
 
-# test_name = "sga_test_notrim"
-# conds = {'6685_04-06-2015': 0, '6685_16-06-2015': 1}
-# folder = "/mnt/chr7/data/julia/"+test_name
-# suf = ".preprocessed_q20.ec.filter.pass.rmdup"
-# filename = folder+"/merged"+suf+"_51.asqg"
-
-
-conds = {'6683_16-06-2015':1, '6685_04-06-2015':0, '6685_16-06-2015':1,
-         '6690_04-06-2015':0, '6690_16-06-2015':1, '6695_04-06-2015':0,
-         '6695_16-06-2015':1, '6704_04-06-2015':0, '6704_16-06-2015':1}
-test_name = 'sga_test_full_notrim_paired_reversed'
-folder = "/mnt/chr7/data/julia/"+test_name
-suf = ".preprocessed_qf5.ec.filter.pass.rmdup"
-filename = folder+"/merged"+suf+"_31.asqg"
-
-
-MIN_LENGTH = 500
-MIN_FC = 2
-
-print "Loading starts", give_time()
-
-# sg = cPickle.load(open('simplified_'+test_name+suf+'_sga.pickle', 'wb'), protocol=2)
-# print "Finished loading graph", give_time()
-# sg1 = SGAFilter.get_random_components(sg, 1)
-
-# cPickle.dump(comp, open('1randomcomponent_'+test_name+suf+'_sga.pickle', 'wb'), protocol=2)
-# print "Finished dumping component", give_time()
-sg1 = cPickle.load(open('1randomcomponent_'+test_name+suf+'_sga.pickle', 'rb'))
+print "Loading graph", my_renamed_graph_pickle, give_time()
+sg = cPickle.load(open(my_renamed_graph_pickle, 'rb'))
 print "Finished loading graph", give_time()
 
 
-outname = "simplified_1random"
 # Heuristic 1: take longest
-print "Start heuristic 1: longest", give_time()
-longest = heuristics.take_longest(sg1)
-print "Found %d paths" % len(longest)
-# filter by FC
-longest_filter = sg1.save_path_sequences(longest, outname+'_sg1_longest.fa', min_fc = MIN_FC)
-print "Found %d paths with foldchange >= %f" % (len(longest_filter), MIN_FC)
-print "Finished heuristic 1: longest", give_time()
+def init_longest(sg, min_len, min_fc):
+    print "Start heuristic 1: longest", give_time()
+    longest = heuristics.take_longest(sg)
+    longest_seqs = get_path_sequences(sg, longest)
+    longest_filter, longest_filter_seqs = filter_by_fc(sg, longest, longest_seqs, min_fc=min_fc)
+    longest_filter200, longest_filter200_seqs = filter_by_seqlen(longest_filter, longest_filter_seqs, min_len)
+    save_paths_to_fasta(sg, longest_filter200, longest_filter200_seqs, '%slongest_filtered_fc%d.fa'%(OUTPUTDIR, MIN_FC))
+
+    print "paths before FC filter\t %d" % len(longest)
+    print "after fc filter"
+    stats(sg, longest_filter, longest_filter_seqs)
+    print "after lengths filter"
+    stats(sg, longest_filter200, longest_filter200_seqs)
+
+    return longest_filter200, longest_filter200_seqs
+
 
 # Heuristic 2: take longest until foldchange
-print "Start heuristic 2: longest until FC", give_time()
-longest_fc = heuristics.take_longest_minfc(sg1, MIN_FC)
-print "Found %d paths with foldchange >= %f" % (len(longest_fc), MIN_FC)
-sg1.save_path_sequences(longest_fc, outname+'_sg1_longestfc.fa')
-print "Finished heuristic 2: longest until FC", give_time()
+def init_longest_fc(sg, min_len, min_fc):
+    # Heuristic 2: take longest until foldchange
+    longest_fc = heuristics.take_longest_minfc(sg, min_fc)
+    longest_fc_seqs = get_path_sequences(sg, longest_fc)
+    longest_fc200, longest_fc200_seqs = filter_by_seqlen(longest_fc, longest_fc_seqs, min_len)
+    save_paths_to_fasta(sg, longest_fc200, longest_fc200_seqs, '%slongestfc_filtered_fc%d.fa'%(OUTPUTDIR, MIN_FC))
+
+    print "max_lenfc before length filter"
+    stats(sg, longest_fc, longest_fc_seqs)
+    print "max_lenfc after length filter"
+    stats(sg, longest_fc200, longest_fc200_seqs)
+
+    return longest_fc200, longest_fc200_seqs
+
 
 # Heuristic 3: take best foldchange until > FC
-print "Start heuristic 3: take best foldchange until > FC", give_time()
-best_fc = heuristics.take_best_fc(sg1, MIN_FC)
-print "Found %d paths with foldchange >= %f" % (len(best_fc), MIN_FC)
-sg1.save_path_sequences(best_fc, outname+'_sg1_bestfc.fa')
-print "Finished heuristic 3: take best foldchange until > FC", give_time()
+def init_best_fc(sg, min_len, min_fc):
 
+    best_fc = heuristics.take_best_fc(sg, min_fc)
+    best_fc_seqs = get_path_sequences(sg, best_fc)
+    best_fc200, best_fc200_seqs = filter_by_seqlen(best_fc, best_fc_seqs, min_len)
+    save_paths_to_fasta(sg, best_fc200, best_fc200_seqs, '%sbestfc_filtered_fc%d.fa'%(OUTPUTDIR, MIN_FC))
+    
+    print "best_fc before length filter"
+    stats(sg, best_fc, best_fc_seqs)
+    print "best_fc after lengths filter"
+    stats(sg, best_fc200, best_fc200_seqs)
+
+    return best_fc200, best_fc200_seqs
+
+
+def init_sga(sg, filename, min_len, min_fc):
+    sga_paths, sga_seqs = load_sga_scaffold(filename, sg)
+    sga_paths200, sga_seqs200 = filter_by_seqlen(sga_paths, sga_seqs , min_len)
+
+    sga_paths_filter, sga_seqs_filter = filter_by_fc(sg, sga_paths200, sga_seqs200, min_fc=min_fc)
+    save_paths_to_fasta(sg, sga_paths_filter, sga_seqs_filter, '%ssga_filtered_fc%d.fa'%(OUTPUTDIR, MIN_FC))
+
+    print "sga before length filter"
+    stats(sg, sga_paths, sga_seqs)
+    print "sga after length filter/before fc"
+    stats(sg, sga_paths200, sga_seqs200)
+    print "sga after fc filter"
+    stats(sg, sga_paths_filter, sga_seqs_filter)
+    return sga_paths_filter, sga_seqs_filter
+
+
+init_longest(sg, MIN_LENGTH, MIN_FC)
+init_longest_fc(sg, MIN_LENGTH, MIN_FC)
+init_best_fc(sg, MIN_LENGTH, MIN_FC)
+init_sga(sg, sgafile, MIN_LENGTH, MIN_FC)
 
 
 

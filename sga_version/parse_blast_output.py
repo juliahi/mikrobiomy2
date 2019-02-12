@@ -1,6 +1,3 @@
-import pysam
-import argparse
-import matplotlib.pyplot as plt
 import re
 import pandas
 
@@ -11,7 +8,8 @@ def count_qcov(blast_filenames, N):
 
     if type(N) == int:
         Ns = [N]*len(blast_filenames)
-    else: Ns = N
+    else:
+        Ns = N
 
     for filename, N in zip(blast_filenames, Ns):
         with open(filename, 'r') as blastfile:
@@ -63,16 +61,3 @@ def count_qcov_len(blast_filenames, labels):
     return df
 
 
-def main():
-    parser = argparse.ArgumentParser(description='Count reads mapped with blast')
-    parser.add_argument('regions', type=str, nargs='+',
-                   help='blast files')
-    parser.add_argument('-o', '--out', type=str, 
-                   help='output file')
-    args = parser.parse_args()
-
-    count(args.regions, args.out)
-
-
-if __name__ == "__main__":
-   main()

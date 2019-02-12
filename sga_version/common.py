@@ -1,8 +1,17 @@
 # widely used methods methods
 import math
 import numpy
+import time
 
 epsilon = 0.000001
+
+PATH_SEP = '&'
+NODE_SEP = '|'
+JOINED_NODE_SEP = '~'
+
+
+def give_time():
+    return time.asctime(time.localtime(time.time()))
 
 
 def compl(s):
@@ -96,5 +105,15 @@ def variance(l):
 
 def dispersion(l):
     if numpy.mean(l) == 0:
-        return 0     # if all values are 0 there is no dispersion... is it right?
+        return 0     # TODO: if all values are 0 there is no dispersion... is it right?
     return variance(l) / numpy.mean(l)
+    
+    
+
+
+def mix_color(c1, c2, c3=None):
+    if c3 is None:
+        return (c1[0] + c2[0])/2, (c1[1] + c2[1])/2, (c1[2] + c2[2])/2
+    return (c1[0] + c2[0] + c3[0]) / 3, (c1[1] + c2[1] + c3[1]) / 3, (c1[2] + c2[2] + c3[2]) / 3
+
+

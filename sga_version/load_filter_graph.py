@@ -3,16 +3,11 @@ import cPickle
 import time
 import graph_stats
 import sys
-#
-# test_name = "sga_test_notrim"
-# conds = {'6685_04-06-2015': 0, '6685_16-06-2015': 1}
-# folder = "/mnt/chr7/data/julia/"+test_name
-# suf = ".preprocessed_q20.ec.filter.pass.rmdup"
-# filename = folder+"/merged"+suf+"_51.asqg"
 
 
-def give_time():
-    return time.asctime(time.localtime(time.time()))
+from common_parameters import *
+from common import *
+
 
 
 def run_stats(sg):
@@ -34,9 +29,9 @@ def load_graph(filename, folder, suf, conds):
 
     sg.add_duplicates_asqg(folder + "/merged" + suf + ".dups.merged" + suf + ".asqg")
     sg.counts = None
-    sg.add_duplicates_fasta_todict(folder + "/merged" + suf + ".fa", reverse=True)
-    sg.add_duplicates_fasta_todict(folder + "/control" + suf + ".fa")
-    sg.add_duplicates_fasta_todict(folder + "/treated" + suf + ".fa")
+    sg.add_duplicates_fasta(folder + "/merged" + suf + ".fa", reverse=True)
+    sg.add_duplicates_fasta(folder + "/control" + suf + ".fa")
+    sg.add_duplicates_fasta(folder + "/treated" + suf + ".fa")
     sg.finish_loading_counts()
     print "Finished loading duplicates", give_time()
     sys.stdout.flush()
@@ -44,38 +39,12 @@ def load_graph(filename, folder, suf, conds):
     return sg
 
 
-conds = {'6683_16-06-2015': 1, '6685_04-06-2015': 0, '6685_16-06-2015': 1,
-             '6690_04-06-2015': 0, '6690_16-06-2015': 1, '6695_04-06-2015': 0,
-             '6695_16-06-2015': 1, '6704_04-06-2015': 0, '6704_16-06-2015': 1}
-test_name = 'sga_test_full_notrim_paired_reversed'
-folder = "/mnt/chr7/data/julia/" + test_name
-suf = ".preprocessed_qf5.ec.filter.pass.rmdup"
-MIN_LENGTH = 200
 
-if __name__ == "__main__":
-
+def simplify_graph(sg):
     stats = []
-    run_full = False
-    DEAD_ENDS_N = 1
-
-    if run_full:
-        filename = folder + "/merged" + suf + "_31.asqg"
-        sg = load_graph(filename, folder, suf, conds)
-        sg.write_to_asqg("my_full_merged" + suf + "_31.asqg")
-    else:       # load already simplified
-        filename = "my_full_merged" + suf + "_31.asqg"
-        sg = load_graph(filename, folder, suf, conds)
-        #sg.write_to_asqg("my_full_merged" + suf + "_31.asqg")
-
-    # Write basic graph statistics:
-    graph_stats.short_summary(sg)
-    stats += run_stats(sg)
-    print "---------", give_time(), "---------"
-    sys.stdout.flush()
-
     sg.compress_simple_paths()
     sg.remove_short_islands(MIN_LENGTH)
-    print "Finished simplifying", give_time()
+    print "Finished simplifying paths", give_time()
 
     sys.stdout.flush()
     graph_stats.short_summary(sg)
@@ -84,8 +53,8 @@ if __name__ == "__main__":
     sys.stdout.flush()
 
     # REMOVE DEAD-ENDS and simplify
-    for i in xrange(DEAD_ENDS_N):
-        sg.remove_deadends_by_length(MIN_LENGTH)
+    for i in xrange(DEADENDS_REMOVE_ROUNDS):
+        sg.remove_deadends_by_length(DEADENDS_MIN_LENGTH)
         graph_stats.short_summary(sg)
 
         stats += run_stats(sg)
@@ -96,28 +65,54 @@ if __name__ == "__main__":
 
     print "Finished dead-ends removal", give_time()
     sys.stdout.flush()
-    sg.write_to_asqg("my_simplified" + str(DEAD_ENDS_N) + "_merged" + suf + "_31_200.asqg")
 
     graph_stats.short_summary(sg)
-
     stats += run_stats(sg)
 
     print "---------", give_time(), "---------"
     sys.stdout.flush()
+    return stats
 
 
-    # Removing simple nodes, saving graph
-    # node_list, seqs = sg.save_simple_nodes(MIN_LENGTH, test_name+'_simpleseqs'+suf+'_sga.fa', filename)
-    # print "Finished saving not connected nodes with length >= %d: %s" % (MIN_LENGTH, give_time())
-    # graph_stats.short_summary(sg)
 
+def load_and_normalize():
+    stats = []
+    sg = load_graph(graph_filename, folder, suf, conditions)
+
+    ### Write basic graph statistics:
+    graph_stats.short_summary(sg)
     stats += run_stats(sg)
+    print "---------", give_time(), "---------"
+    sys.stdout.flush()
 
-    cPickle.dump(stats, open('stats'+str(DEAD_ENDS_N)+'_'+test_name+suf+'_sga200.pickle', 'wb'), protocol=2)
+    ### simplify graph and compute graph statistics
+    stats += simplify_graph(sg)
+
+    ### save graph in ASQG and pickle, and stats as pickle
+    sg.write_to_asqg(my_simplified_graph_filename, contigs=None, rename=False)
+    cPickle.dump(stats, open(simplify_stats_filename, 'wb'), protocol=2)
+    cPickle.dump(sg, open(my_renamed_graph_pickle, 'wb'), protocol=2)
+
     print "Finished saving stats", give_time()
+    return sg
 
-    cPickle.dump(sg, open('simplified'+str(DEAD_ENDS_N)+'_'+test_name+suf+'_sga200.pickle', 'wb'), protocol=2)
 
+if __name__ == "__main__":
+
+    sg = load_and_normalize()
+
+    # tmp: remove TODO
+    # sg = load_graph(my_simplified_graph_filename, folder, suf, conditions)
+    #sg.filename = graph_filename
+
+    ### normalize graph and rename
+    sg.normalize_counts()
+    # writing to ASQG and renaming permanently:
+    sg.write_to_asqg(my_renamed_graph_filename, contigs=my_renamed_graph_filename+"-contigs.fa",
+                     rename=renamed_nodenames)
+
+    ### save normalized and renamed graph in pickle
+    cPickle.dump(sg, open(my_renamed_graph_pickle, 'wb'), protocol=2)
     print "Finished saving graph", give_time()
 
 

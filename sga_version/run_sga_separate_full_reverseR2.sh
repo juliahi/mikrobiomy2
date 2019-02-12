@@ -5,13 +5,7 @@ mkdir -p $OUTDIR
 
 LOG=$OUTDIR/log.txt
 
-########################## reverse-complement R2 reads ##############################
-mkdir -p $INDIR/reversed
-for PROBE in '6683_16-06-2015' '6685_04-06-2015' '6685_16-06-2015' '6690_04-06-2015' '6690_16-06-2015' '6695_04-06-2015' '6695_16-06-2015' '6704_04-06-2015' '6704_16-06-2015'; do
-	#/home/julia/seqkit seq -r -p $INDIR/${PROBE}_depl_2.fq.gz -o $INDIR/reversed/${PROBE}_depl_2.fq.gz &
-	sleep 1
-done
-wait
+
 
 ######################## run SGA ############################
 QUALFILTER=5
@@ -60,7 +54,7 @@ processprobe () {
 
 
 for probe in '6683_16-06-2015' '6685_04-06-2015' '6685_16-06-2015' '6690_04-06-2015' '6690_16-06-2015' '6695_04-06-2015' '6695_16-06-2015' '6704_04-06-2015' '6704_16-06-2015'; do
-    #processprobe $probe &
+    processprobe $probe &
     sleep 1
 done
 
@@ -124,7 +118,6 @@ echo `date` 'merge'
 ###sga correct -t 16 -k $CORRECTK  --prefix=$OUTDIR/$PREFIX$SUF $OUTDIR/$PREFIX$SUF.fa    
 ###SUF=$SUF.correct$CORRECTK
 #sga index -a ropebwt -t 16  --prefix=$OUTDIR/$PREFIX$SUF $OUTDIR/$PREFIX$SUF.fa  
-
 ########## end: wersja dla odczytów różnej długości
 
 logcommand $OUTDIR/merged$SUF.log  "sga rmdup -t 8 --prefix=$OUTDIR/$PREFIX$SUF $OUTDIR/$PREFIX$SUF.fa " 

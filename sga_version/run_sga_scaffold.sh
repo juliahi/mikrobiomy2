@@ -2,50 +2,70 @@
 #cd ~/sga_mod/src; ./autogen.sh; ./configure --with-sparsehash=/home/julia/lib/sparsehash/ --with-bamtools=/home/julia/lib/bamtools  --prefix=/home/julia/lib/sga_mod; 
 #cd ~/sga_mod/src; make ; make install
 
-sga=~/lib/sga_mod/bin/sga
+SGA_MOD=~/lib/sga_mod/bin/sga
 
-# run simplification to check
-name=my_full_merged_assemble_simpl_1_200
-#$sga assemble --cut-terminal=1 --bubble=0 -l 200 -o $name my_full_merged.preprocessed_qf5.ec.filter.pass.rmdup_31.asqg >> sga1_200.log 
+### run simplification to check - optional
+#name=my_full_merged_assemble_simpl_1_200
+#$SGA_MOD assemble --cut-terminal=1 --bubble=0 -l 200 -o $name my_full_merged.preprocessed_qf5.ec.filter.pass.rmdup_31.asqg >> sga1_200.log
 #gunzip -c $name-graph.asqg.gz > $name-graph.asqg
 
 
 
 # run after my simplification to get scaffolds
-name=my_simplified1_merged.preprocessed_qf5.ec.filter.pass.rmdup_31_200
-#$sga assemble --cut-terminal=0 --bubble=0 -l 200 -o $name  ${name}.asqg >> my_sga1_200.log 
-#gunzip -c $name-graph.asqg.gz > $name-graph.asqg
+name=mysimplified1_200_renamed
+
+#$SGA_MOD assemble --cut-terminal=0 --bubble=0 -l 200 -o $name  ${name}.asqg >> my_sga1_200.log
+
+
 
 DIR="/mnt/chr7/data/julia/"
 PE="/mnt/chr7/data/julia/sga_test_full_notrim_paired_reversed/merged.preprocessed_qf5.ec.filter.pass.rmdup.fa"
 
 
+SCAFFOLDDIR=$OUTDIR/sga_scaffold
+mkdir -p $SCAFFOLDDIR
+
 # Realign reads to the contigs
 SGA_NEW=/home/julia/sga_new/src/bin
 
-#PRIMARY_CONTIGS=${name}-contigs_rename.fa
-PRIMARY_CONTIGS=renamed1_200-contigs.fa
-PRIMARY_GRAPH=renamed1_200-graph.asqg
-IN1=all_${name}.pe.r1.fa
-IN2=all_${name}.pe.r2.fa
+PRIMARY_CONTIGS=$OUTDIR/$name.asqg-contigs.fa
+PRIMARY_GRAPH=$OUTDIR/$name.asqg
+
+
+
+IN1=$SCAFFOLDDIR/all_${name}.pe.r1.fa
+IN2=$SCAFFOLDDIR/all_${name}.pe.r2.fa
 BWA_BIN=/home/julia/lib/bwa/bwa
 
+touch $IN1
+touch $IN2
+
+# copy r1 and r2 reads from all files in $PE
+for file in $INDIR/*depl_1.fq.gz; do
+    /home/julia/lib/seqkit fq2fa $file >> $IN1
+done
+for file in $INDIR/*depl_2.fq.gz; do
+    /home/julia/lib/seqkit fq2fa $file >> $IN2
+done
+
+
 #$BWA_BIN index $PRIMARY_CONTIGS
-#$BWA_BIN aln -t 16 $PRIMARY_CONTIGS $IN1 > $IN1.sai
-#$BWA_BIN aln -t 16 $PRIMARY_CONTIGS $IN2 > $IN2.sai
-#$BWA_BIN sampe $PRIMARY_CONTIGS  $IN1.sai $IN2.sai $IN1 $IN2 | samtools view -Sb - > libPE3.bam
+$BWA_BIN aln -t 16 $PRIMARY_CONTIGS $IN1 > $IN1.sai
+$BWA_BIN aln -t 16 $PRIMARY_CONTIGS $IN2 > $IN2.sai
+$BWA_BIN sampe $PRIMARY_CONTIGS  $IN1.sai $IN2.sai $IN1 $IN2 | samtools view -Sb - > $SCAFFOLDDIR/libPE.bam
 
-# Convert the BAM file into a set of contig-contig distance estimates
-#$SGA_NEW/sga-bam2de.pl -n 1 -m 200 -t 8 --mina 30 -k 100 --prefix libPE3 libPE3.bam
-#exit
-# Compute copy number estimates of the contigs
-#$SGA_NEW/sga-astat.py libPE.bam > libPE.astat
+### Convert the BAM file into a set of contig-contig distance estimates
+$SGA_NEW/sga-bam2de.pl -n 1 -m 200 -t 8 --mina 30 -k 100 --prefix $SCAFFOLDDIR/libPE $SCAFFOLDDIR/libPE.bam
 
-# Build the scaffolds
-#$sga scaffold  -o scaffolds3.scaf -u 1 -c 0.1 -g $PRIMARY_GRAPH --pe libPE3.de $PRIMARY_CONTIGS
+### Compute copy number estimates of the contigs
+$SGA_NEW/sga-astat.py $SCAFFOLDDIR/libPE.bam > $SCAFFOLDDIR/libPE.astat
 
-# Convert the scaffolds to FASTA format#
-$sga scaffold2fasta --min-gap-length=5 --min-length=200 --use-overlap --distanceFactor=3 --write-unplaced --graph-resolve=best-any --write-names -a $PRIMARY_GRAPH -o sga-scaffolds4.fa scaffolds2.scaf
+### Build the scaffolds
+$SGA_MOD scaffold  -o $SCAFFOLDDIR/scaffolds.scaf -u 1 -c 0.1 -g $PRIMARY_GRAPH --pe $SCAFFOLDDIR/libPE.de $PRIMARY_CONTIGS
+
+### Convert the scaffolds to FASTA format#
+$SGA_MOD scaffold2fasta --min-gap-length=5 --min-length=200 --use-overlap --distanceFactor=3 --write-unplaced \
+    --graph-resolve=best-any --write-names -a $PRIMARY_GRAPH -o $OUTDIR/sga-scaffolds.fa $SCAFFOLDDIR/scaffolds.scaf
 
 
 

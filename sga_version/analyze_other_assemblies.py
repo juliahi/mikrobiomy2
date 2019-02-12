@@ -11,7 +11,6 @@ import seaborn as sns
 
 import pysam
 
-NPAIRS = 90582474
 
 
 def stats(seqs, counts):
@@ -193,7 +192,6 @@ def coverage_variances_combine(names, bam_files, conditions, label):
             variance1.append(variance(cov1))
             dispersion0.append(dispersion(cov0))
             dispersion1.append(dispersion(cov1))
-
 
     df = pandas.DataFrame(data={'heuristic': heuristic, "variance0": variance0, "variance1": variance1,
                                 "dispersion0": dispersion0, "dispersion1": dispersion1})

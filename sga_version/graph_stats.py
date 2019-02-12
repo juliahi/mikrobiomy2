@@ -2,11 +2,7 @@
 
 import numpy as np
 import pandas
-# import seaborn
-# import matplotlib
-# matplotlib.use('Agg')
-# import matplotlib.pyplot as plt
-
+import networkx as nx
 # import SGAFilter
 
 
@@ -14,6 +10,14 @@ def short_summary(sg):
     print "Number of nodes", sg.number_of_nodes()
     print "Number of edges", sg.number_of_edges()
     print "Number of reads", sg.number_of_reads()
+
+
+def simple_cycles(sg):
+    return len(list(nx.simple_cycles(sg.graph)))
+
+
+def find_cycle(sg):
+    return list(nx.find_cycle(sg.graph))
 
 
 def analyze_counts(sg):
@@ -73,8 +77,13 @@ def analyze_degrees(sg):
     return sumdegrees
 
 
+def connected_components(sg):
+    cc = list(nx.weakly_connected_components(sg.graph))
+    return len(cc), [len(s) for s in cc]
+
+
 def analyze_connected_components(sg):
-    no, sizes = sg.connected_components()
+    no, sizes = connected_components(sg)
     n_nodes = sg.number_of_nodes()
     print "Number of components:", no, "for nodes:", n_nodes
     c1, c2 = sizes.count(1), sizes.count(2)
@@ -108,3 +117,54 @@ def analyze_lengths(sg):
 
     return lengths
 
+
+def get_path_count(graph, path, new_names=False):
+        if new_names:
+            path = [graph.new_names[x] for x in path]
+        counts_tmp0 = 0
+        counts_tmp1 = 0
+        for node in path:
+            counts_tmp0 += graph.counts[node][0]
+            counts_tmp1 += graph.counts[node][1]
+        return counts_tmp0, counts_tmp1
+
+
+def get_path_coverage(graph, path, new_names=False):
+    if new_names:
+        path = [graph.new_names[x] for x in path]
+    # coverage of path from graph = reads will be extended to whole node
+
+    cov0 = [self.counts[path[0]][0]] * self.graph.node[path[0]]["length"]
+    cov1 = [self.counts[path[0]][1]] * self.graph.node[path[0]]["length"]
+
+    for node1, node2 in cons_pairs(path):
+        if (node1, node2) in self.graph.edges:
+                edge = self.graph.edges[node1, node2]
+                c0, c1 = self.counts[node2]
+
+                l2 = self.graph.node[node2]["length"]
+                for i in xrange(edge['end2']):
+                    cov0[-1-i] += c0
+                    cov1[-1-i] += c1
+
+                cov0 += [c0] * (l2 - edge['end2'])
+                cov1 += [c1] * (l2 - edge['end2'])
+
+        else:
+                c0, c1 = self.counts[node2]
+                l2 = self.graph.node[node2]["length"]
+                cov0 += [c0] * l2
+                cov1 += [c1] * l2
+    return cov0, cov1
+
+
+def get_largest_components(sg, ncomps):
+    components = sorted(list(nx.weakly_connected_components(sg.graph)), key=lambda x: len(x), reverse=True)[:ncomps]
+    components = [item for sublist in components for item in sublist]
+    return sg.subgraph(components)
+
+
+def get_random_components(sg, ncomps):
+    components = list(nx.weakly_connected_components(sg.graph))[:ncomps]
+    components = [item for sublist in components for item in sublist]
+    return sg.subgraph(components)

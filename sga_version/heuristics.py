@@ -1,8 +1,4 @@
-import SGAFilter
-
 import heapq
-import math
-
 from common import *
 
 
@@ -167,3 +163,4 @@ def take_best_fc(graph, min_fc):
             # fc = foldchange(*counts)
         paths.append(path)
     return paths
+

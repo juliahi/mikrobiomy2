@@ -7,21 +7,148 @@ import numpy
 import networkx as nx
 import seaborn as sns
 import pandas
-import graph_stats
-from parse_blast_output import count_qcov, count_qcov_len
+
+from common import iter_fasta, PATH_SEP
+from graph_stats import get_path_count
 
 import cPickle
 
-jaccard_header = "Set1 \ set2\tSet1 n Set2\tSet2 \ set1\tJaccard index"
+
+def stats(graph, paths, seqs):
+    counts = map(lambda x: get_path_count(graph, x), paths)
+    print "No. paths: \tNo. vertices: \tLength (bp): \tCounts0: \tCounts1: \tCounts:"
+    print len(paths), "\t\t", sum([len(path) for path in paths]), \
+        "\t", sum(map(len, seqs)), \
+        "\t", sum(map(lambda x: x[0], counts)), \
+        "\t", sum(map(lambda x: x[1], counts)), \
+        "\t", sum(map(lambda x: sum(x), counts))
 
 
-def jaccard_index(set1, set2):
-    wspolne = len(set1.intersection(set2))
-    idx = 1. * wspolne / len(set1.union(set2))
-    #print "Set1\set2=", len(set1) - wspolne, '\t', "Set1 n Set2=", wspolne, '\t', "Set2\set1=", len(set2) - wspolne
-    #print "%n\t%d\t%d\t%f" % (len(set1) - wspolne, wspolne, len(set2) - wspolne, idx)
-    print '{:0,d}\t{:0,d}\t{:0,d}\t{:0,.4f}'.format(len(set1) - wspolne, wspolne, len(set2) - wspolne, idx)
-    return idx
+def save_paths_to_fasta(sg, paths, seqs, out_file):        # writing to FASTA
+        counts = 0
+        length = 0
+        total = 0
+        with open(out_file, 'w+') as f:
+            for path, seq in zip(paths, seqs):
+                counts_tmp = get_path_count(sg, path)
+                counts += counts_tmp[0] + counts_tmp[1]
+                length += len(seq)
+                total += 1
+                f.write('>%s counts1=%d counts2=%d foldchange=%f\n%s\n' % (
+                        PATH_SEP.join(path), counts_tmp[0], counts_tmp[1],
+                        foldchange(counts_tmp[0], counts_tmp[1]), seq))
+        print "Saved %d sequences with %d counts of total length %d" % (total, counts, length)
+
+
+def load_info_from_fasta(filename):
+    paths = []
+    seqs = []
+    counts = []
+
+    for name, seq in iter_fasta(filename):
+        name, c1, c2, fc = name.split()
+        paths.append(name.split(PATH_SEP))
+        counts.append((c1.split('=')[1], c2.split('=')[1]))
+        seqs.append(seq)
+    return paths, seqs, counts
+
+
+def load_paths_from_fasta(filename):
+    paths = []
+    seqs = []
+
+    for name, seq in iter_fasta(filename):
+        name = name.strip().split()
+        paths.append(name.split(PATH_SEP))
+        seqs.append(seq)
+    return paths, seqs
+
+
+def get_path_sequences(sg, paths, graph_file=None, new_names=False):
+        if len(paths) == 0:
+            return []
+        if new_names:
+            paths = [[sg.new_names[x] for x in path] for path in paths]
+
+        seqs = sg.get_nodes_sequence(map(lambda x: PATH_SEP.join(x), paths), graph_file)
+        return seqs
+
+
+
+
+
+
+### Filtering selected paths ###
+
+def filter_by_fc(graph, paths, sequences, min_fc, new_names=False):
+        if len(paths) == 0:
+            return []
+
+        counts = 0
+        filtered_paths = []
+        filtered_seqs = []
+        for path, s in zip(paths, sequences):
+            counts_tmp = get_path_count(graph, path, new_names)
+            if not foldchange_compare(counts_tmp[0], counts_tmp[1], min_fc):
+                continue
+            counts += counts_tmp[0] + counts_tmp[1]
+            filtered_paths.append(path)
+            filtered_seqs.append(s)
+
+        print "Leave %d sequences with %d counts" % (len(filtered_paths), counts)
+        return filtered_paths, filtered_seqs
+
+
+def filter_by_seqlen(paths, seqs, min_len):
+    filtered_paths = []
+    filtered_seqs = []
+    for p, s in zip(paths, seqs):
+        if len(s) >= min_len:
+            filtered_paths.append(p)
+            filtered_seqs.append(s)
+    return filtered_paths, filtered_seqs
+
+
+def filter_by_pathlength(paths, seqs, l=1):
+    filtered_paths = []
+    filtered_seqs = []
+    for p, s in zip(paths, seqs):
+        if len(p) > l:
+            filtered_paths.append(p)
+            filtered_seqs.append(s)
+    return filtered_paths, filtered_seqs
+
+
+### Comparing used edges ###
+
+def get_edges_from_list(paths):
+    all_edges = []
+    for names in paths:
+        edges = cons_pairs(names)
+        all_edges += edges
+    return set(all_edges)
+
+
+def get_pairs_of_edges(paths):
+    all_pairs = []
+    for path in paths:
+        if len(path) >= 3:
+            all_pairs += [(path[i], path[i+1], path[i+2]) for i in xrange(len(path)-2)]
+    return set(all_pairs)
+
+
+
+
+
+
+
+
+
+
+
+
+
+# TODO
 
 
 def compare_counts(graph, paths):
@@ -35,32 +162,8 @@ def compare_counts(graph, paths):
     return fcs
 
 
-def load_sga_scaffold(filename, sg, min_len=0):  # for my modified SGA scaffold results
-    paths = []
-    seqs = []
-    not_in_graph = 0
-    not_in_graph_longer = 0
-    for name, seq in list(iter_fasta(filename)):
-        path = name.split()[1][8:].split(';')[:-1]
-        if sg.new_names is not None:
-            path = [sg.new_names[x.strip('+-')] for x in path]
-        else:
-            path = [x.strip('+-') for x in path]
-
-        if len(seq) > min_len:
-            if len([1 for node in path if not sg.graph.has_node(node)]) > 0:
-                not_in_graph += 1
-                if len(path) > 1:
-                    not_in_graph_longer += 1
-            else:
-                paths.append(path)
-                seqs.append(seq)
-    print "not loading %d paths that are not in graph any more. %d is not isolated" % \
-          (not_in_graph, not_in_graph_longer)
-    return paths, seqs
 
 
-# TODO
 
 def get_nodes_foldchange(sg, paths, single=True):
     # single - include single-node paths
@@ -88,51 +191,24 @@ def fc_weighted_variance(fc, weights):
 
 # Wrapping functions
 
+def filter_islands(sg, min_len, min_fc):
+    node_list = []
+    sum_len = 0
+    for node, deg in sg.graph.degree():
+        if deg == 0:
+            node_list.append(node)
+            sum_len += sg.graph.node[node]["length"]
+    fc_count = len([1 for node in node_list
+                    if foldchange_compare(sg.counts[node][0], sg.counts[node][1], min_fc) and
+                    sg.graph.node[node]["length"] > min_len])
 
+    print "Remove %d islands of length %d, %d with |foldchange| >= %f and length >= %d" % \
+          (len(node_list), sum_len, fc_count, min_fc, min_len)
 
+    # removing nodes
+    sg.remove_nodes(node_list)
+    return sg
 
-def init_longest(sg, min_len, min_fc, outname):
-    # Heuristic 1: take longest
-    longest = heuristics.take_longest(sg)
-    longest_seqs = sg.save_path_sequences(longest, outname+'_longest.fa')
-    longest_filter, longest_filter_seqs = filter_paths(sg, longest, longest_seqs, min_fc=min_fc)
-    longest_filter200, longest_filter200_seqs = filter_lengths(longest_filter, longest_filter_seqs, min_len)
-
-    print "max_len before FC filter\t %d" % len(longest)
-    print "max_len after fc filter"
-    stats(sg, longest_filter, longest_filter_seqs)
-    print "max_len after lengths filter"
-    stats(sg, longest_filter200, longest_filter200_seqs)
-
-    return longest_filter200, longest_filter200_seqs
-
-
-def init_longest_fc(sg, min_len, min_fc, outname):
-    # Heuristic 2: take longest until foldchange
-    longest_fc = heuristics.take_longest_minfc(sg, min_fc)
-    longest_fc_seqs = sg.save_path_sequences(longest_fc, outname + '_longestfc.fa')
-    longest_fc200, longest_fc200_seqs = filter_lengths(longest_fc, longest_fc_seqs, min_len)
-
-    print "max_lenfc"
-    stats(sg, longest_fc, longest_fc_seqs)
-    print "max_lenfc after lengths filter"
-    stats(sg, longest_fc200, longest_fc200_seqs)
-
-    return longest_fc200, longest_fc200_seqs
-
-
-def init_best_fc(sg, min_len, min_fc, outname):
-    # Heuristic 3: take best foldchange until > FC
-    best_fc = heuristics.take_best_fc(sg, min_fc)
-    best_fc_seqs = sg.save_path_sequences(best_fc, outname + '_bestfc.fa')
-    best_fc200, best_fc200_seqs = filter_lengths(best_fc, best_fc_seqs, min_len)
-
-    print "best_fc"
-    stats(sg, best_fc, best_fc_seqs)
-    print "best_fc after lengths filter"
-    stats(sg, best_fc200, best_fc200_seqs)
-
-    return best_fc200, best_fc200_seqs
 
 
 def init_sga(sg, filename, min_len, min_fc):
@@ -140,16 +216,12 @@ def init_sga(sg, filename, min_len, min_fc):
 
     print "sga"
     stats(sg, sga_paths, sga_seqs)
-    sga_filter = filter_paths(sg, sga_paths, sga_seqs, min_fc=min_fc)
+    sga_filter = filter_by_fc(sg, sga_paths, sga_seqs, min_fc=min_fc)
     print "sga after fc filter"
     stats(sg, sga_filter[0], sga_filter[1])
     return sga_filter
 
 
-def mix_color(c1, c2, c3=None):
-    if c3 is None:
-        return (c1[0] + c2[0])/2, (c1[1] + c2[1])/2, (c1[2] + c2[2])/2
-    return (c1[0] + c2[0] + c3[0]) / 3, (c1[1] + c2[1] + c3[1]) / 3, (c1[2] + c2[2] + c3[2]) / 3
 
 
 def plot_venn(sets, names, ax, colors):
@@ -420,55 +492,6 @@ def write_unique(path_sets, seq_sets, names, prefix):
         write_to_fasta(paths_u, seqs_u, prefix + '_' + name + '.fa')
 
 
-def all_blast(names, prefix, colors):
-    qcovs, nhits = count_qcov(['blast_' + prefix + '_' + name + '.tsv' for name in names], 1000)
-    nhits = [[q if q < 10 else 10 for q in nhits1] for nhits1 in nhits]
-
-    fig, ax = plt.subplots(1, 2, figsize=(16, 6))
-
-    ax[0].hist(qcovs, label=names, color=colors)
-    ax[0].legend()
-    ax[0].set_xlabel("query coverage [%]")
-    # ax[0,1].hist(qcovs, cumulative=True, normed=True, histtype='step', bins=50, label=names, linewidth=2)
-    # ax[0,1].legend()
-
-    ax[1].hist(nhits, label=names, color=colors)
-    ax[1].set_xlabel("number of BLAST hits")
-    ax[1].legend()
-
-
-def all_blast_longest(names, prefix, colors):
-        qcovs, nhits = count_qcov(['blast_' + prefix + '_' + name + 'longest1000.tsv' for name in names], 1000)
-        nhits = [[q if q < 10 else 10 for q in nhits1] for nhits1 in nhits]
-
-        fig, ax = plt.subplots(1, 2, figsize=(16, 6))
-
-        ax[0].hist(qcovs, label=names, color=colors)
-        ax[0].legend()
-        ax[0].set_xlabel("query coverage [%]")
-        # ax[0,1].hist(qcovs, cumulative=True, normed=True, histtype='step', bins=50, label=names, linewidth=2)
-        # ax[0,1].legend()
-
-        ax[1].hist(nhits, label=names, color=colors)
-        ax[1].set_xlabel("number of BLAST hits")
-        ax[1].legend()
-
-
-def all_blast_length(labels, prefix, colors):
-    df = count_qcov_len(['blast_' + prefix + '_' + name + '.tsv' for name in labels], labels)
-    fig, ax = plt.subplots(1, 1, figsize=(16, 8))
-    print labels
-
-    sns.scatterplot(x="length", y="qcov", hue="label",
-                    data=df, ax=ax, color=colors, #label=labels,
-                    alpha=.7
-                    )
-    #sns.distplot(df, x="qcov", label=labels, color=colors, ax[1])
-    #ax[1].legend()
-    #ax[1].set_xlabel("query coverage [%]")
-    #ax[2].hist(df["length"], label=labels, color=colors)
-    #ax[2].legend()
-    #ax[2].set_xlabel("query length [%]")
 
 
 def check_pairing(path_sets, to_old_names):
@@ -498,7 +521,3 @@ def check_pairing(path_sets, to_old_names):
             reads |= tmp
         result.append((same_node, same_path, different_paths, len(reads)))
     return result
-
-
-
-
