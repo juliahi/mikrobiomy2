@@ -28,7 +28,6 @@ def load_graph(filename, folder, suf, conds):
     print "Finished loading graph", give_time()
 
     sg.add_duplicates_asqg(folder + "/merged" + suf + ".dups.merged" + suf + ".asqg")
-    sg.counts = None
     sg.add_duplicates_fasta(folder + "/merged" + suf + ".fa", reverse=True)
     sg.add_duplicates_fasta(folder + "/control" + suf + ".fa")
     sg.add_duplicates_fasta(folder + "/treated" + suf + ".fa")
@@ -74,8 +73,7 @@ def simplify_graph(sg):
     return stats
 
 
-
-def load_and_normalize():
+def load_and_simplify():
     stats = []
     sg = load_graph(graph_filename, folder, suf, conditions)
 
@@ -99,11 +97,11 @@ def load_and_normalize():
 
 if __name__ == "__main__":
 
-    sg = load_and_normalize()
+    #sg = load_and_simplify()
 
     # tmp: remove TODO
-    # sg = load_graph(my_simplified_graph_filename, folder, suf, conditions)
-    #sg.filename = graph_filename
+    sg = load_graph(my_simplified_graph_filename, folder, suf, conditions)
+    sg.filename = my_simplified_graph_filename
 
     ### normalize graph and rename
     sg.normalize_counts()

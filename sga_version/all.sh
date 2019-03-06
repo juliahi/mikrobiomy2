@@ -28,34 +28,42 @@ export INDIR
 
 
 ######################### Analysis of Overlap graph - simplification stages #########
-echo `date`, "running with parameters:"
+echo "\n#########################################################\n"
+NAME=mysimplified1_deadends200_minlen200
+echo `date`, "$NAME, running with parameters:"
 cat common_parameters.py
+echo "-----------------------------------------------------------\n"
 
-# python load_filter_graph.py
-# graph after renaming in: OUTDIR/mysimplified1_200_renamed.asqg
+#python load_filter_graph.py                   ### graph after renaming in: $OUTDIR/$NAME_renamed.asqg
 
 ### visualise stats with jupyter:
-# SGA graph analysis - simplification as in SGA
-
-
-
+## SGA graph analysis - simplification as in SGA
 
 
 ######################### Run heuristics ############################################
 
 ### Prepare heuristics and other files (like blast results) for comparison
-#sh run_sga_scaffold.sh             # output in OUTDIR/sga
-python run_heuristics.py        # output in OUTDIR/longest longestfc bestfc sga
-
+#sh run_sga_scaffold.sh    $NAME         # output in OUTDIR/sga
+#python run_heuristics.py        # output in OUTDIR/heuristics_$NAME/longest longestfc bestfc sga
 
 ### Statistics for heuristics
-# SGA graph 
+## SGA graph - heuristics - FC=2 normalized
+
+#mkdir -p $OUTDIR/megahit
+#cp /mnt/chr4/mikrobiomy-2/megahit_results/all/long_contigs_200.fa $OUTDIR/megahit/megahit.fa
+#sh run_blast_local.sh $OUTDIR/heuristics_$NAME
 
 ### Compare using mapping with kallisto (paired end and single end) and bowtie2
-#sh map_to_heuristics.sh
-#sh bowtie...
+#sh map_all_kallisto_singleend.sh $NAME
+#sh map_all_bowtie.sh $NAME
 
-#jupyter - SGA graph - heuristics
+#python prepare_coverages.py singleend
+#python prepare_coverages.py bowtie
+
+##Jupyter - compare heuristics with megahit using kallisto and bowtie mapping
+## SGA graph - heuristics - megahit
+
+sh blast_heuristic_and_megahit.sh $OUTDIR/heuristics_$NAME
 
 
 

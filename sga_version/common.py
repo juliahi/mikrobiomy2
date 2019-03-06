@@ -60,10 +60,11 @@ def abslog2foldchange(n1, n2):
 
 
 def foldchange_compare(n1, n2, min_fc):
-        if n1 == n2 == 0: return False
-        if n1 >= n2*min_fc: return True
-        if n2 >= n1*min_fc: return True
-        return False
+    # check if 1/min_fc <= n1/n2 <= min_fc
+    if n1 == n2 == 0: return False
+    if n1 >= n2*min_fc: return True
+    if n2 >= n1*min_fc: return True
+    return False
 
 
 # check if foldchange for counts c1 stays enriched in the same direction after adding counts c2
@@ -107,13 +108,15 @@ def dispersion(l):
     if numpy.mean(l) == 0:
         return 0     # TODO: if all values are 0 there is no dispersion... is it right?
     return variance(l) / numpy.mean(l)
-    
-    
 
 
-def mix_color(c1, c2, c3=None):
-    if c3 is None:
-        return (c1[0] + c2[0])/2, (c1[1] + c2[1])/2, (c1[2] + c2[2])/2
-    return (c1[0] + c2[0] + c3[0]) / 3, (c1[1] + c2[1] + c3[1]) / 3, (c1[2] + c2[2] + c3[2]) / 3
+jaccard_header = "Set1 \ set2\tSet1 n Set2\tSet2 \ set1\tJaccard index"
 
 
+def jaccard_index(set1, set2):
+    wspolne = len(set1.intersection(set2))
+    idx = 1. * wspolne / len(set1.union(set2))
+    #print "Set1\set2=", len(set1) - wspolne, '\t', "Set1 n Set2=", wspolne, '\t', "Set2\set1=", len(set2) - wspolne
+    #print "%n\t%d\t%d\t%f" % (len(set1) - wspolne, wspolne, len(set2) - wspolne, idx)
+    print '{:0,d}\t{:0,d}\t{:0,d}\t{:0,.4f}'.format(len(set1) - wspolne, wspolne, len(set2) - wspolne, idx)
+    return idx

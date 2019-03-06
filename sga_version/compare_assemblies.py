@@ -1,27 +1,16 @@
 
 from common import *
-from SGAFilter import *
-from matplotlib_venn import venn3, venn3_circles
+from common_parameters import *
 from matplotlib import pyplot as plt
 import numpy
-import networkx as nx
 import seaborn as sns
 import pandas
 import graph_stats
 from parse_blast_output import count_qcov, count_qcov_len
+import pysam
 
-import cPickle
-
-jaccard_header = "Set1 \ set2\tSet1 n Set2\tSet2 \ set1\tJaccard index"
-
-
-def jaccard_index(set1, set2):
-    wspolne = len(set1.intersection(set2))
-    idx = 1. * wspolne / len(set1.union(set2))
-    #print "Set1\set2=", len(set1) - wspolne, '\t', "Set1 n Set2=", wspolne, '\t', "Set2\set1=", len(set2) - wspolne
-    #print "%n\t%d\t%d\t%f" % (len(set1) - wspolne, wspolne, len(set2) - wspolne, idx)
-    print '{:0,d}\t{:0,d}\t{:0,d}\t{:0,.4f}'.format(len(set1) - wspolne, wspolne, len(set2) - wspolne, idx)
-    return idx
+from plots import *
+#from compare_heuristics import *
 
 
 def compare_counts(graph, paths):
@@ -60,347 +49,27 @@ def load_sga_scaffold(filename, sg, min_len=0):  # for my modified SGA scaffold 
     return paths, seqs
 
 
-# TODO
+def print_stats(paths_list, seqs_list, counts_list, sums_list = None):
+    print "No. paths: \tLength (bp): \tCounts0: \tCounts1: \tCounts: \t counts [%]: "
+    norm = NPAIRS*2
+    if sums_list is None:
+        for paths, seqs, counts in zip(paths_list, seqs_list, counts_list):
+            frac = 1. * sum(map(lambda x: sum(x), counts)) / norm * 100
+            print '{:0,d}\t\t{:0,d}\t{:0,.1f}\t{:0,.1f}\t{:0,.1f}\t{:0,.2f}'.format(len(seqs), sum(map(len, seqs)),
+                                                                                    sum(map(lambda x: x[0], counts)),
+                                                                                    sum(map(lambda x: x[1], counts)),
+                                                                                    sum(map(lambda x: sum(x), counts)),
+                                                                                    frac)
 
-def get_nodes_foldchange(sg, paths, single=True):
-    # single - include single-node paths
-    if single:
-        fcs = [map(sg.node_foldchange, nodes) for nodes in paths]
-        lens = [map(lambda x:sg.graph.nodes[x]["length"], nodes) for nodes in paths]
     else:
-        fcs = [map(sg.node_foldchange, nodes) for nodes in paths if len(nodes) > 1]
-        lens = [map(lambda x:sg.graph.nodes[x]["length"], nodes) for nodes in paths if len(nodes) > 1]
-    return fcs, lens
-
-
-def lfc_variance(fc, total_fc):
-    return sum([(math.log(x, 2)-math.log(total_fc, 2))**2 for x in fc])/len(fc)
-    #return numpy.var([math.log(x, 2) for x in fc])
-    #return numpy.var(fc)
-
-
-def fc_weighted_variance(fc, weights):
-    s = 1.*sum(weights)
-    m = numpy.mean([math.log(x, 2)*y/s for x, y in zip(fc, weights)])
-    return sum([y/s*((math.log(x, 2)*y/s - m)**2) for x, y in zip(fc, weights)])
-    # return numpy.var([1.*x*y/s for x, y in zip(fc, weights)])
-
-
-# Wrapping functions
-
-
-
-
-def init_longest(sg, min_len, min_fc, outname):
-    # Heuristic 1: take longest
-    longest = heuristics.take_longest(sg)
-    longest_seqs = sg.save_path_sequences(longest, outname+'_longest.fa')
-    longest_filter, longest_filter_seqs = filter_paths(sg, longest, longest_seqs, min_fc=min_fc)
-    longest_filter200, longest_filter200_seqs = filter_lengths(longest_filter, longest_filter_seqs, min_len)
-
-    print "max_len before FC filter\t %d" % len(longest)
-    print "max_len after fc filter"
-    stats(sg, longest_filter, longest_filter_seqs)
-    print "max_len after lengths filter"
-    stats(sg, longest_filter200, longest_filter200_seqs)
-
-    return longest_filter200, longest_filter200_seqs
-
-
-def init_longest_fc(sg, min_len, min_fc, outname):
-    # Heuristic 2: take longest until foldchange
-    longest_fc = heuristics.take_longest_minfc(sg, min_fc)
-    longest_fc_seqs = sg.save_path_sequences(longest_fc, outname + '_longestfc.fa')
-    longest_fc200, longest_fc200_seqs = filter_lengths(longest_fc, longest_fc_seqs, min_len)
-
-    print "max_lenfc"
-    stats(sg, longest_fc, longest_fc_seqs)
-    print "max_lenfc after lengths filter"
-    stats(sg, longest_fc200, longest_fc200_seqs)
-
-    return longest_fc200, longest_fc200_seqs
-
-
-def init_best_fc(sg, min_len, min_fc, outname):
-    # Heuristic 3: take best foldchange until > FC
-    best_fc = heuristics.take_best_fc(sg, min_fc)
-    best_fc_seqs = sg.save_path_sequences(best_fc, outname + '_bestfc.fa')
-    best_fc200, best_fc200_seqs = filter_lengths(best_fc, best_fc_seqs, min_len)
-
-    print "best_fc"
-    stats(sg, best_fc, best_fc_seqs)
-    print "best_fc after lengths filter"
-    stats(sg, best_fc200, best_fc200_seqs)
-
-    return best_fc200, best_fc200_seqs
-
-
-def init_sga(sg, filename, min_len, min_fc):
-    sga_paths, sga_seqs = get_paths_from_file(filename, sg, min_len=min_len)
-
-    print "sga"
-    stats(sg, sga_paths, sga_seqs)
-    sga_filter = filter_paths(sg, sga_paths, sga_seqs, min_fc=min_fc)
-    print "sga after fc filter"
-    stats(sg, sga_filter[0], sga_filter[1])
-    return sga_filter
-
-
-def mix_color(c1, c2, c3=None):
-    if c3 is None:
-        return (c1[0] + c2[0])/2, (c1[1] + c2[1])/2, (c1[2] + c2[2])/2
-    return (c1[0] + c2[0] + c3[0]) / 3, (c1[1] + c2[1] + c3[1]) / 3, (c1[2] + c2[2] + c3[2]) / 3
-
-
-def plot_venn(sets, names, ax, colors):
-    v = venn3(sets, set_labels=names, ax=ax)
-    #c = venn3_circles(sets, ax=ax)
-
-    v.get_patch_by_id('100').set_color(colors[0])
-    v.get_patch_by_id('010').set_color(colors[1])
-    v.get_patch_by_id('001').set_color(colors[2])
-    v.get_patch_by_id('100').set_alpha(0.9)
-    v.get_patch_by_id('010').set_alpha(0.9)
-    v.get_patch_by_id('001').set_alpha(0.9)
-    try:
-        v.get_patch_by_id('110').set_color(mix_color(colors[0], colors[1]))
-        v.get_patch_by_id('011').set_color(mix_color(colors[1], colors[2]))
-        v.get_patch_by_id('101').set_color(mix_color(colors[0], colors[2]))
-        v.get_patch_by_id('110').set_alpha(1)
-        v.get_patch_by_id('011').set_alpha(1)
-        v.get_patch_by_id('101').set_alpha(1)
-        v.get_patch_by_id('111').set_color(mix_color(colors[0], colors[1], colors[2]))
-        v.get_patch_by_id('111').set_alpha(0.9)
-    except Exception:
-        pass
-
-
-def vertices_venn(sets, names, ax, colors):
-    plot_venn(sets, names, ax, colors)
-    ax.set_title('Comparison of used vertices\n')
-
-
-def identical_venn(sets, names, ax, colors):
-    plot_venn(sets, names, ax, colors)
-    ax.set_title('Comparison of identical returned paths\n')
-
-
-def all_vertices(paths, names, colors):
-    node_sets = [set([node for path in paths_set for node in path]) for paths_set in paths]
-    for idx1, idx2 in index_pairs(len(paths)):
-        print names[idx1], names[idx2]
-        #compare_used_vertices(paths[idx1], paths[idx2])
-        jaccard_index(node_sets[idx1], node_sets[idx2])
-
-    fig, ax = plt.subplots(1, 2, figsize=(20, 8))
-    vertices_venn(node_sets[:3], names[:3], ax[0], colors[:3])
-    vertices_venn(node_sets[1:], names[1:], ax[1], colors[1:])
-
-
-def remove_identical(path_sets, seq_sets):
-    sets = []
-    for paths in path_sets:
-        s = set([x[0] for x in paths if len(x) == 1])
-        sets.append(s)
-        print "1-node paths:", len(s)
-    int = set.intersection(*sets)
-    print "Intersection:", len(int)
-
-    paths2 = []
-    seqs2 = []
-    for paths, seqs in zip(path_sets, seq_sets):
-        p2 = []
-        s2 = []
-        for p, s in zip(paths, seqs):
-            if len(p) > 1 or p[0] not in int:
-                p2.append(p)
-                s2.append(s)
-        paths2.append(p2)
-        seqs2.append(s2)
-
-    return paths2, seqs2
-
-
-def all_edges(path_sets, names, colors):
-    edge_sets = [set(get_edges_from_list(paths)) for paths in path_sets]
-    for idx1, idx2 in index_pairs(len(edge_sets)):
-        print names[idx1], names[idx2]
-        jaccard_index(edge_sets[idx1], edge_sets[idx2])
-
-
-def all_pairs(path_sets, names, colors):
-    edge_sets = [set(get_pairs_of_edges(paths)) for paths in path_sets]
-    for idx1, idx2 in index_pairs(len(edge_sets)):
-        print names[idx1], names[idx2]
-        jaccard_index(edge_sets[idx1], edge_sets[idx2])
-
-
-def all_identical(path_sets, names, colors):
-    path_sets = [set(map(tuple, paths)) for paths in path_sets]
-    for idx1, idx2 in index_pairs(len(path_sets)):
-        ident = len(path_sets[idx1].intersection(path_sets[idx2]))
-        print names[idx1], names[idx2]
-        print "Identical:", ident, \
-            "S1 percent:", ident * 1.0 / len(path_sets[idx1]), "S2 percent:", ident * 1.0 / len(path_sets[idx2])
-
-    fig, ax = plt.subplots(1, 2, figsize=(20, 8))
-
-    identical_venn(path_sets[:3], names[:3], ax[0], colors[:3])
-    identical_venn(path_sets[-3:], names[-3:], ax[1], colors[-3:])
-
-
-def all_foldchange(sg, path_sets, names):
-    #lfcs = []
-    fig, ax = plt.subplots(3, 2, figsize=(20, 12))
-    ax = [ax[0, 0], ax[0, 1], ax[1, 0], ax[1, 1], ax[2, 0]]
-    for i in xrange(len(path_sets)):
-        values = map(lambda path: math.log(foldchange(*get_path_count(sg, path)), 2), path_sets[i])
-        #lfcs += values
-        print "%s: '-Inf' values: %f, +Inf: %f" % (names[i], 1.*len([x for x in values if x <= -15])/len(values),
-                                            1. * len([x for x in values if x >= 15])/len(values))
-        #sns.distplot([x for x in values if -15 < x < 15], rug=False, kde=False, bins=100, ax=ax[i])
-        sns.distplot(values, rug=False, kde=False, bins=100, ax=ax[i])
-
-        ax[i].set(xlabel="log2(fold change)")
-        sns.distplot([x for x in values if -15 < x < 15], rug=False, hist=False, kde=True,
-                     label=names[i], ax=ax[len(names)])
-
-    ax[len(names)].set(xlabel="log2(fold change)")
-    sns.plt.legend()
-    #df = pandas.DataFrame(data={'heuristic': h, 'lfc': lfcs})
-    #return df
-
-
-def one_foldchange(sg, path_sets, names, colors):
-    #lfcs = []
-    fig, ax = plt.subplots(1, figsize=(15, 9))
-    for i in xrange(len(path_sets)):
-        values = map(lambda path: math.log(foldchange(*get_path_count(sg, path)), 2), path_sets[i])
-        #lfcs += values
-        print "%s: '-Inf' values: %f, +Inf: %f" % (names[i], 1.*len([x for x in values if x <= -15])/len(values),
-                                            1. * len([x for x in values if x >= 15])/len(values))
-
-        sns.distplot([x for x in values if -12 < x < 12], rug=False, hist=False, kde=True,
-                     label=names[i], ax=ax, color=colors[i])
-
-    ax.set(xlabel="log2(fold change)")
-    ax.set_xlim(-12,12)
-    plt.legend()
-    #df = pandas.DataFrame(data={'heuristic': h, 'lfc': lfcs})
-    #return df
-    return ax
-
-
-def prepare_variance_data(sg, path_sets, names):
-    h = []
-    variance = []
-    weighted = []
-    dispersion = []
-    dispersion_fc = []
-
-    for paths, name in zip(path_sets, names):
-        paths = [p for p in paths if len(p) > 0]
-        h += [name] * len(paths)
-        fcs, lengths = get_nodes_foldchange(sg, paths)
-        path_fc = map(lambda path: foldchange(*get_path_count(sg, path)), paths)
-        lfc_var = [lfc_variance(*x) for x in zip(fcs, path_fc)]
-        wfc = map(lambda x: fc_weighted_variance(x[0], x[1]), zip(fcs, lengths))
-        variance += lfc_var
-        weighted += wfc
-        dispersion += map(lambda x: x/numpy.mean(lfc_var), lfc_var)
-        dispersion_fc += [x/math.log(y, 2) if y != 1 else None for x, y in zip(lfc_var, path_fc)]
-    df = pandas.DataFrame(data={'heuristic': h, "variance": variance, "weighted": weighted,
-                                "dispersion_mean": dispersion, "dispersion_real": dispersion_fc})
-    return df
-
-
-def prepare_coverage_data(sg, path_sets, names, min_length=1):
-
-    heuristic = []
-    variance0 = []
-    dispersion0 = []
-    variance1 = []
-    dispersion1 = []
-
-    for paths, name in zip(path_sets, names):
-        print "counting ", name
-        for path in paths:
-            if len(path) >= min_length:
-                heuristic += [name]
-                cov0, cov1 = sg.get_path_coverage(path)
-                variance0.append(variance(cov0))
-                variance1.append(variance(cov1))
-                dispersion0.append(dispersion(cov0))
-                dispersion1.append(dispersion(cov1))
-
-    df = pandas.DataFrame(data={'heuristic': heuristic, "variance0": variance0, "variance1": variance1,
-                                "dispersion0": dispersion0, "dispersion1": dispersion1})
-    return df
-
-
-def all_fc_variance(df, names, colors):
-    fig, ax = plt.subplots(1, 2, figsize=(20, 8))
-    sns.violinplot(x="heuristic", y="variance", hue="heuristic", data=df[df["variance"] > 0.01],
-                            palette="muted", ax=ax[0], color=colors)
-    # ax[0].set(yscale='log')
-    # ax[0].set(xlabel="variance of log2(fold change)")
-
-    sns.violinplot(x="heuristic", y="weighted", hue="heuristic", data=df[df["variance"] > 0.01],
-                            palette="muted", ax=ax[1], color=colors)
-    ax[1].set(yscale='log')
-    # ax[1].set(xlabel="variance of log2(fold change)")
-
-
-def all_coverage_variance(df, names, colors, remove=0.05):
-    l = len(df['heuristic'])
-    df2 = pandas.DataFrame(data={'heuristic': list(df['heuristic']) + list(df['heuristic']),
-                                 "variance": list(df['variance0']) + list(df['variance1']),
-                                 "dispersion": list(df['dispersion0']) + list(df["dispersion1"]),
-                                 "condition": [0]*l + [1]*l})
-
-    df3 = df2.copy()
-    for name in df3.heuristic.unique():
-        qv0 = df3[(df3.condition == 0) & (df3.heuristic == name)]["variance"].quantile(1-remove)
-        qv1 = df3[(df3.condition == 1) & (df3.heuristic == name)]["variance"].quantile(1-remove)
-        print name, qv0, qv1
-        df3 = df3[(df3.heuristic != name) | (((df3.condition == 0) & (df3.variance < qv0))
-                  | ((df3.condition == 1) & (df3.variance < qv1)))]
-
-    fig, ax = plt.subplots(2, 1, figsize=(20, 18))
-    sns.violinplot(x="heuristic", y="variance", hue="condition", data=df3,
-                   ax=ax[0],  bw=.2, cut=0)
-
-    df3 = df2
-    df3[df3.dispersion.isna()]["dispersion"] = 0
-
-    for name in df3.heuristic.unique():
-        qd0 = df3[(df3.condition == 0) & (df3.heuristic == name)]["dispersion"].quantile(1-remove)
-        qd1 = df3[(df3.condition == 1) & (df3.heuristic == name)]["dispersion"].quantile(1-remove)
-        print name, qd0, qd1
-
-        df3 = df3[(df3.heuristic != name) | (((df3.condition == 0) & (df3.dispersion < qd0))
-                                             | ((df3.condition == 1) & (df3.dispersion < qd1)))]
-    sns.violinplot(x="heuristic", y="dispersion", hue="condition", data=df3,
-                   ax=ax[1], bw=.2, cut=0)
-    # ax[1].set(yscale='log')
-    # ax[1].set(xlabel="variance of log2(fold change)")
-
-
-def coverage_heatmap(df, name):
-    #TODO
-    pass
-
-
-def all_fc_dispersion(df, names, colors):
-    fig, ax = plt.subplots(1, 2, figsize=(20, 8))
-    sns.violinplot(x="heuristic", y="dispersion_mean", hue="heuristic", data=df[df["variance"] > 0.01],
-                            palette="muted", ax=ax[0], color=colors)
-    # ax[0].set(yscale='log')
-    ax[0].set(xlabel="dispersion of log2(fold change)")
-
-    sns.violinplot(x="heuristic", y="dispersion_real", hue="heuristic", data=df[df["variance"] > 0.01],
-                            palette="muted", ax=ax[1], color=colors)
-    # ax[1].set(yscale='log')
+        for paths, seqs, counts, sums in zip(paths_list, seqs_list, counts_list, sums_list):
+            counts = [[i[0]*sums[0] / 1000000, i[1]*sums[1] / 1000000] for i in counts]
+            frac = 1. * sum(map(lambda x: sum(x), counts)) / norm * 100
+            print '{:0,d}\t\t{:0,d}\t{:0,.1f}\t{:0,.1f}\t{:0,.1f}\t{:0,.2f}'.format(len(seqs), sum(map(len, seqs)),
+                                                                                    sum(map(lambda x: x[0], counts)),
+                                                                                    sum(map(lambda x: x[1], counts)),
+                                                                                    sum(map(lambda x: sum(x), counts)),
+                                                                                    frac)
 
 
 def write_unique(path_sets, seq_sets, names, prefix):
@@ -420,19 +89,124 @@ def write_unique(path_sets, seq_sets, names, prefix):
         write_to_fasta(paths_u, seqs_u, prefix + '_' + name + '.fa')
 
 
-def all_blast(names, prefix, colors):
-    qcovs, nhits = count_qcov(['blast_' + prefix + '_' + name + '.tsv' for name in names], 1000)
+##################################################
+
+def check_read(r):
+    if r.is_secondary: return False
+    if r.is_unmapped: return False
+    if r.is_supplementary: return False
+    return True
+
+
+def normalize(counts):
+    s0 = 1.*sum([c[0] for c in counts])
+    s1 = 1.*sum([c[1] for c in counts])
+    print s0, s1
+    result = [[c[0]*1000000/s0, c[1]*1000000/s1] for c in counts]
+    return result, (s0, s1)
+
+
+def get_sequences(filename, min_len):
+    names = []
+    seqs = []
+    for name, seq in iter_fasta(filename):
+        if len(seq) >= min_len:
+            names.append(name)
+            seqs.append(seq)
+        else: print name, len(seq)
+    return names, seqs
+
+
+def filter_by_fc(names, seqs, counts, min_fc=MIN_FC):
+    fnames = []
+    fseqs = []
+    fcounts = []
+    for name, seq, count in zip(names, seqs, counts):
+        if foldchange_compare(count[0], count[1], min_fc):
+            fnames.append(name)
+            fseqs.append(seq)
+            fcounts.append(count)
+    return fnames, fseqs, fcounts
+
+
+def init_assembly(filename, bam_files):
+    print filename
+    names, seqs = get_sequences(filename, min_len=MIN_LENGTH)
+    counts = load_coverage_from_bams(names, bam_files, conditions)
+    print_stats([names], [seqs], [counts])
+    # return names, seqs, counts, []
+    counts, sums = normalize(counts)
+    names_filter, seqs_filter, counts_filter = filter_by_fc(names, seqs, counts, min_fc=MIN_FC)
+    print_stats([names_filter], [seqs_filter], [counts_filter], [sums])
+    return names_filter, seqs_filter, counts_filter, sums
+
+
+def load_coverage_from_bams(names, bam_files, conditions):
+    covs = [[0, 0] for i in names]
+    n = 0
+    n2 = 0
+    suppls = 0
+    for filename in bam_files:
+        with pysam.AlignmentFile(filename, 'rb') as bamfile:
+            filereads = 0
+            #print list(bamfile.get_index_statistics())[-5:]
+            #print filename
+            n += sum([x[1] for x in bamfile.get_index_statistics()]) #+ sum([x[2] for x in bamfile.get_index_statistics()])
+            #chroms = set([x[0] for x in bamfile.get_index_statistics()])
+            #print sum([x[1] for x in bamfile.get_index_statistics()]), sum([x[2] for x in bamfile.get_index_statistics()])
+            #print "nocoordinate", bamfile.nocoordinate
+            print "mapped & unmapped", bamfile.mapped, bamfile.unmapped, bamfile.mapped+ bamfile.unmapped
+            print "chromosomes", len([x[1] for x in bamfile.get_index_statistics()])
+
+            #names = [n.split()[0] for n in names]
+
+            cond = conditions[filename.split('/')[-1][:15]]
+            for i, name in enumerate(names):
+                c = bamfile.count(name.split()[0], read_callback=check_read)
+                #suppls += len([r for r in bamfile.fetch() if r.is_supplementary])
+                covs[i][cond] += c
+                filereads += c
+                #if name.split()[0] in chroms:
+                #    chroms.remove(name.split()[0])
+            n2 += filereads
+            #print filereads, float(filereads)/(bamfile.mapped+ bamfile.unmapped), float(filereads)/(NPAIRS*2)
+            #print [covs[i][cond] for i in range(5)]
+
+    print "coverage by bamfile.mapped", float(n)/(NPAIRS*2)
+    print "coverage by iterating names", float(n2)/(NPAIRS*2)
+
+    return covs
+
+
+######## plot some properties #############
+
+def plot_identical_seqs(seq_list, labels):
+    seq_sets = [set(seqs) for seqs in seq_list]
+    for idx1, idx2 in index_pairs(len(seq_sets)):
+        ident = len(seq_sets[idx1].intersection(seq_sets[idx2]))
+        print labels[idx1], labels[idx2], "Identical:", ident, \
+            "S1 percent:", ident * 1.0 / len(seq_sets[idx1]), "S2 percent:", ident * 1.0 / len(seq_sets[idx2])
+
+    fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+    plot_venn(seq_sets, labels, ax, colors, 'Returned paths')
+
+
+######## ploting blast results ############
+
+def plot_blast_results(names, prefix, colors):
+    N=1000
+    qcovs, nhits = count_qcov([OUTPUTDIR + prefix + '/blast_' + name + '_random%d.tsv'%N for name in names], N)
     nhits = [[q if q < 10 else 10 for q in nhits1] for nhits1 in nhits]
 
     fig, ax = plt.subplots(1, 2, figsize=(16, 6))
 
-    ax[0].hist(qcovs, label=names, color=colors)
+    ax[0].hist(qcovs, label=names, color=[colors[x] for x in names])
     ax[0].legend()
     ax[0].set_xlabel("query coverage [%]")
     # ax[0,1].hist(qcovs, cumulative=True, normed=True, histtype='step', bins=50, label=names, linewidth=2)
     # ax[0,1].legend()
 
-    ax[1].hist(nhits, label=names, color=colors)
+    ax[1].hist(nhits, label=names, color=[colors[x] for x in names])
     ax[1].set_xlabel("number of BLAST hits")
     ax[1].legend()
 
@@ -469,36 +243,5 @@ def all_blast_length(labels, prefix, colors):
     #ax[2].hist(df["length"], label=labels, color=colors)
     #ax[2].legend()
     #ax[2].set_xlabel("query length [%]")
-
-
-def check_pairing(path_sets, to_old_names):
-    result = []
-    for paths in path_sets:
-        same_path = 0
-        same_node = 0
-        different_paths = 0
-        reads = set()
-        for path in paths:
-            tmp = set()
-            for node in path:
-                tmp2 = set()
-                for read in to_old_names[node].split(NODE_SEP):
-                    if read[:-2] in tmp2:
-                        same_node += 2
-                        tmp2.remove(read[:-2])
-                    elif read[:-2] in tmp:
-                        same_path += 2
-                        tmp.remove(read[:-2])
-                    elif read[:-2] in reads:
-                        different_paths += 2
-                        reads.remove(read[:-2])
-                    else:
-                        tmp2.add(read[:-2])
-                tmp |= tmp2
-            reads |= tmp
-        result.append((same_node, same_path, different_paths, len(reads)))
-    return result
-
-
 
 

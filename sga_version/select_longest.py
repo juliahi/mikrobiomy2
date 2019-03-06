@@ -21,7 +21,7 @@ def filter_file(inputf, outputf, N):
         for name, seq in fasta_iter(open(inputf)):
             sequences.append((name, seq))
 
-        for name, seq in sorted(sequences, key=lambda x: len(x[1]), reverse=True)[:]:
+        for name, seq in sorted(sequences, key=lambda x: len(x[1]), reverse=True)[:N]:
             f.write(">%s\n%s\n" % (name, seq))
 
 

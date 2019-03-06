@@ -8,11 +8,11 @@ def read_edge(line):    # from ASQG formatted file
     if int(line[8]) == 0:   # not changing direction
             n1 = line[0]
             n2 = line[1]
-            start1 = int(line[2])
-            end1 = int(line[3])
+            start1 = int(line[2])       # 0-based
+            end1 = int(line[3])         # inclusive
             # #self.len1 = int(values[4])
-            start2 = int(line[5])
-            end2 = int(line[6])
+            start2 = int(line[5])       # 0-based
+            end2 = int(line[6])         # inclusive
             # #self.len2 = int(values[7])
             if start1 == 0:  # flip nodes
                 n1, n2 = n2, n1
@@ -33,6 +33,7 @@ class SgaGraph:
         self.filename = None
         self.max_edges = max_edges
         self.old_n_nodes = None
+        self.sums = None    # will be sum of reads for 1 condition and second, after normalization
 
         self.new_names = None   # new names after simplification, while saving to asqg
 
@@ -133,8 +134,8 @@ class SgaGraph:
                 print "Removing %d edges from %d super-repetitive nodes" % (len(rmedges), len(repetitive))
                 self.graph.remove_edges_from(rmedges)
 
-            print 'no. edges loaded:\t', self.graph.number_of_edges()
-            print 'Found %d duplicated edges' % dup_edges
+            print 'no. edges loaded:\t', self.graph.number_of_edges(), '. \t Found %d duplicated edges' % dup_edges
+            print 'Read sums:', self.number_of_reads_cond()
 
     def write_to_asqg(self, filename, contigs=None, rename=False):
         # rename = filename for tsv if renaming permanently
@@ -244,9 +245,17 @@ class SgaGraph:
         for c in self.counts.values():
             sums0 += c[0]
             sums1 += c[1]
-        print "Sum of all reads condition 0: %.2f. Condition 1: %.2f" % (sums0, sums1)
+        print "Normalization: Sum of all reads condition 0: %.2f. Condition 1: %.2f, all: %.2f" % (sums0, sums1, sums0+sums1)
         for name, c in self.counts.iteritems():
             self.counts[name] = [1000000.*c[0]/sums0, 1000000.*c[1]/sums1]
+        # check
+        sums0a = 0
+        sums1a = 0
+        for n in self.graph.nodes:
+            sums0a += self.counts[n][0]
+            sums1a += self.counts[n][1]
+        print "After norm:", sums0a, sums1a
+        self.sums = [sums0, sums1]
 
     def subgraph(self, nodes):
         newsg = SgaGraph(self.conds)
@@ -277,7 +286,7 @@ class SgaGraph:
 
     def add_node(self, node_id, seq):
         nreads = [0, 0]
-        for part in node_id.split(NODE_SEP):
+        for part in node_id.replace(JOINED_NODE_SEP, NODE_SEP).split(NODE_SEP):
             cond = self.whatcond(part)
             nreads[cond] += 1
             self.duplicates_dict[part] = node_id
@@ -308,14 +317,17 @@ class SgaGraph:
                 self.counts[name][1 - self.whatcond(name)] += count
             else:
                 self.counts[name][self.whatcond(name)] += count
+            return count
         except KeyError:
             try:
                 if reverse:
                     self.counts[self.duplicates_dict[name]][1 - self.whatcond(name)] += count
                 else:
                     self.counts[self.duplicates_dict[name]][self.whatcond(name)] += count
+                return count
             except KeyError:
                 pass  # node removed because had no connected nodes
+        return 0
 
     def add_duplicates_asqg(self, filename):
         # filename = asqg file of overlap btw duplicates 
@@ -371,8 +383,7 @@ class SgaGraph:
                         c = int(number.split('=')[1]) - 1
                         if c > 0:
                             added += 1
-                            addedc += c
-                            self.add_dupl(name, c, reverse)
+                            addedc += self.add_dupl(name, c, reverse)
                         f.readline()
                     else:
                         break
@@ -383,6 +394,7 @@ class SgaGraph:
 
     def finish_loading_counts(self):
         self.duplicates_dict = None
+        print "Read counts", self.number_of_reads_cond()
         #TODO: czy to dobrze?
         self.nodes = None
 
@@ -402,6 +414,12 @@ class SgaGraph:
 
     def number_of_reads(self):
         return sum([sum(v) for v in self.counts.itervalues()])
+
+    def number_of_reads_cond(self):
+        return sum([v[0] for v in self.counts.itervalues()]), sum([v[1] for v in self.counts.itervalues()])
+
+    def number_of_reads_not_normed(self):
+        return sum([v[0]*sg.sums[0] + v[1]*sg.sums[1] for v in self.counts.itervalues()])/1000000
 
     def number_of_nodes(self):
         return self.graph.number_of_nodes()
@@ -647,7 +665,6 @@ class SgaGraph:
                 assert len(seq) == self.graph.node[node]["length"], "%d %d" % (len(seq), self.graph.node[node]["length"])
             sequences.append(seq)
         return sequences
-
 
     def save_simple_nodes(self, minlength, out_file, graph_file=None, remove=False):
         node_list = []
